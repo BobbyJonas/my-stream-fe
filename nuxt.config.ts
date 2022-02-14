@@ -35,8 +35,10 @@ export default {
   // Modules for dev and build (recommended): https://go.nuxtjs.dev/config-modules
   buildModules: [
     // https://go.nuxtjs.dev/eslint
-    "@nuxtjs/eslint-module",
+    // "@nuxtjs/eslint-module",
+    "@nuxtjs/stylelint-module",
     "@nuxt/typescript-build",
+    "@nuxtjs/tailwindcss",
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
@@ -61,5 +63,27 @@ export default {
   build: {
     publicPath: "/app/",
     transpile: ["ant-design-vue"],
+  },
+
+  // Stylelint Configuration: https://stylelint.io/user-guide/usage/node-api/#options
+  stylelint: {
+    configFile: ".stylelintrc",
+  },
+
+  // Tailwind CSS Configuration: https://tailwindcss.nuxtjs.org/options
+  tailwindcss: {
+    config: {
+      content: [
+        "./src/components/**/*.{js,ts,vue}",
+        "./src/layouts/**/*.vue",
+        "./src/pages/**/*.vue",
+        "./src/plugins/**/*.{js,ts}",
+        "./nuxt.config.{js,ts}",
+      ],
+      theme: {
+        extend: {},
+      },
+      plugins: [],
+    },
   },
 };

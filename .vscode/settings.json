@@ -1,3 +1,15 @@
 {
+  "cSpell.words": [
+    "lintfix",
+    "opentype",
+    "stylelint",
+    "stylelintrc",
+    "tailwindcss",
+    "truetype"
+  ],
+  "css.validate": false,
+  "css.lint.unknownAtRules": "ignore",
+  "less.validate": false,
+  "stylelint.validate": ["css", "less", "postcss", "scss", "vue", "sass"],
   "typescript.tsdk": "node_modules/typescript/lib"
 }

@@ -1,0 +1,30 @@
+{
+  "defaultSeverity": "warning",
+  "extends": ["stylelint-config-standard", "stylelint-config-prettier"],
+  "overrides": [
+    {
+      "files": ["**/*.html", "**/*.vue"],
+      "customSyntax": "postcss-html"
+    },
+    {
+      "files": ["**/*.less"],
+      "customSyntax": "postcss-less"
+    }
+  ],
+  "rules": {
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": ["tailwind", "apply", "variants", "responsive", "screen"]
+      }
+    ],
+    "declaration-block-trailing-semicolon": null,
+    "no-descending-specificity": null,
+    "no-empty-source": null
+  },
+  "ignoreFiles": [
+    "./node_modules/**/*.{css,less}",
+    "./dist/**/*.{css,less}",
+    "./.nuxt/**/*.{css,less}"
+  ]
+}

@@ -37,6 +37,8 @@ export default {
 
 <style lang="less" scoped>
 .title {
+  @apply px-11;
+
   span {
     font-size: 60px;
   }
