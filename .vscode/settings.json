@@ -1,11 +1,13 @@
 {
   "cSpell.words": [
+    "compat",
     "lintfix",
     "opentype",
     "stylelint",
     "stylelintrc",
     "tailwindcss",
-    "truetype"
+    "truetype",
+    "unplugin"
   ],
   "css.validate": false,
   "css.lint.unknownAtRules": "ignore",

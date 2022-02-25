@@ -9,6 +9,7 @@
     "sourceMap": true,
     "strict": true,
     "noEmit": true,
+    "experimentalDecorators": true,
     "baseUrl": ".",
     "paths": {
       "~/*": ["./src/*"],
@@ -16,6 +17,12 @@
     },
     "types": ["@nuxt/types"],
     "typeRoots": ["node_modules/@types"]
+  },
+  "vueCompilerOptions": {
+    "experimentalCompatMode": 2,
+    "experimentalTemplateCompilerOptions": {
+      "compatConfig": { "MODE": 2 }
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", ".nuxt", "dist"]

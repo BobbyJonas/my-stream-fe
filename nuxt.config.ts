@@ -37,8 +37,9 @@ export default {
     // https://go.nuxtjs.dev/eslint
     // "@nuxtjs/eslint-module",
     "@nuxtjs/stylelint-module",
-    "@nuxt/typescript-build",
     "@nuxtjs/tailwindcss",
+    "@nuxt/typescript-build",
+    "@nuxtjs/composition-api/module",
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
@@ -73,7 +74,7 @@ export default {
   // Tailwind CSS Configuration: https://tailwindcss.nuxtjs.org/options
   tailwindcss: {
     config: {
-      content: [
+      purge: [
         "./src/components/**/*.{js,ts,vue}",
         "./src/layouts/**/*.vue",
         "./src/pages/**/*.vue",
