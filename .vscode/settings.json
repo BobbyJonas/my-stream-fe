@@ -3,6 +3,7 @@
     "compat",
     "lintfix",
     "opentype",
+    "socketio",
     "stylelint",
     "stylelintrc",
     "tailwindcss",

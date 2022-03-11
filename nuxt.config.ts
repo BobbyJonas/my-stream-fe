@@ -21,8 +21,8 @@ export default {
 
   // Global CSS: https://go.nuxtjs.dev/config-css
   css: [
-    "@/assets/css/normalize.css",
-    "@/assets/css/global.less",
+    "@/assets/styles/normalize.css",
+    "@/assets/styles/global.less",
     "ant-design-vue/dist/antd.css",
   ],
 
@@ -47,7 +47,8 @@ export default {
 
   // Server Middleware
   serverMiddleware: {
-    "/api": "~/api",
+    "/api": "~/server/api",
+    "/socket": "~/server/socket",
   },
   // For deployment you might want to edit host and port
   // server: {
