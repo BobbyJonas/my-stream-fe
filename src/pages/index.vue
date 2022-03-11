@@ -3,37 +3,34 @@
     <Button>111</Button>
     <h1 class="title px-10"><span>vue-nuxt-template2345</span></h1>
     <a href="#" @click="sayHello(1)">12342234322312321</a>
-    <blog-index></blog-index>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { Component, Prop, Vue } from "vue-property-decorator";
-import BlogIndex from "./blog/index.vue";
+import {
+  onBeforeMount,
+  onMounted,
+  onUnmounted,
+  ref,
+} from "@nuxtjs/composition-api";
+
+import { Button } from "ant-design-vue";
+import socketioService from "@/assets/services/socketio";
 
 const sayHello = (value: number) => {
   console.log(value);
 };
 
-// 非 setup 书写方法
-// @Component
-// export default class App extends Vue {
-//   name = "Simon Zhang";
-//   // computed
-//   get MyName(): string {
-//     return `My name is ${this.name}`;
-//   }
+onBeforeMount(() => {
+  console.log("beforeMount");
+  socketioService.setupSocketConnection();
+});
 
-//   // methods
-//   sayHello(a?: number): void {
-//     alert(`Hello ${this.name}`);
-//     console.log(12);
-//   }
-
-//   mounted() {
-//     this.sayHello();
-//   }
-// }
+onUnmounted(() => {
+  socketioService.disconnect();
+  console.log("unmounted");
+});
 </script>
 
 <style lang="less" scoped>
