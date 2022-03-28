@@ -16,7 +16,7 @@ import {
 } from "@nuxtjs/composition-api";
 
 import { Button } from "ant-design-vue";
-import socketioService from "@/assets/services/socketio";
+import socketioService from "~/assets/services/socket-io";
 
 const sayHello = (value: number) => {
   console.log(value);
