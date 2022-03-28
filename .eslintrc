@@ -22,6 +22,7 @@
     "prettier/prettier": 1,
     "no-useless-constructor": 1,
     "@typescript-eslint/no-empty-function": 1,
+    "@typescript-eslint/no-empty-interface": 0,
     "@typescript-eslint/no-non-null-assertion": 1
   }
 }

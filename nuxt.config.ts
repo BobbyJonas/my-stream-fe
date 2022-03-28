@@ -1,3 +1,6 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 export default {
   ssr: false,
   srcDir: "src",
@@ -40,21 +43,21 @@ export default {
     "@nuxtjs/tailwindcss",
     "@nuxt/typescript-build",
     "@nuxtjs/composition-api/module",
+    ["@nuxtjs/dotenv", { path: "./" }],
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: ["@nuxtjs/axios"],
+  modules: ["@nuxtjs/axios", "./src/assets/modules/socket-io"],
 
   // Server Middleware
   serverMiddleware: {
-    "/api": "~/server/api",
-    "/socket": "~/server/socket",
+    "/api": "~/api",
   },
   // For deployment you might want to edit host and port
-  // server: {
-  //  port: 8000, // default: 3000
-  //  host: '0.0.0.0' // default: localhost
-  // },
+  server: {
+    host: process.env.HOST,
+    port: process.env.PORT_APP,
+  },
 
   globalName: "app",
   globals: {
