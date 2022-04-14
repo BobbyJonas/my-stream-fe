@@ -8,6 +8,7 @@
     "@nuxtjs",
     "plugin:@typescript-eslint/recommended",
     "plugin:nuxt/recommended",
+    "plugin:vuejs-accessibility/recommended",
     "plugin:prettier/recommended"
   ],
   "globals": {

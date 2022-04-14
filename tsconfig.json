@@ -16,7 +16,9 @@
       "@/*": ["./src/*"]
     },
     "types": ["@nuxt/types"],
-    "typeRoots": ["node_modules/@types"]
+    "typeRoots": ["node_modules/@types"],
+    "jsx": "preserve",
+    "forceConsistentCasingInFileNames": true
   },
   "vueCompilerOptions": {
     "experimentalCompatMode": 2,
