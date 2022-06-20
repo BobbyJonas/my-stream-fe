@@ -23,7 +23,9 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     nuxt.hook("listen", () => {
       server.listen(port || 4001);
-      const messageLines = [`Socket.io Port: ${chalk.underline.gray(port)}`];
+      const messageLines = [
+        `Socket.io Port: ${chalk.underline.gray(String(port))}`,
+      ];
       if (nuxt.options.cli.badgeMessages?.length) messageLines.unshift("");
       nuxt.options.cli.badgeMessages.push(...messageLines);
     });
