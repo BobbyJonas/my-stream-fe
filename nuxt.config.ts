@@ -23,11 +23,7 @@ export default {
   },
 
   // Global CSS: https://go.nuxtjs.dev/config-css
-  css: [
-    "@/assets/styles/normalize.css",
-    "@/assets/styles/global.less",
-    "ant-design-vue/dist/antd.css",
-  ],
+  css: ["@/assets/styles/normalize.css", "@/assets/styles/global.less"],
 
   // Plugins to run before rendering page: https://go.nuxtjs.dev/config-plugins
   plugins: [],
@@ -41,13 +37,18 @@ export default {
     // "@nuxtjs/eslint-module",
     "@nuxtjs/stylelint-module",
     "@nuxtjs/tailwindcss",
+    "@nuxt/postcss8",
     "@nuxt/typescript-build",
     "@nuxtjs/composition-api/module",
     ["@nuxtjs/dotenv", { path: "./" }],
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: ["@nuxtjs/axios", "./src/assets/modules/socket-io"],
+  modules: [
+    "@nuxtjs/axios",
+    "./src/assets/modules/socket-io",
+    "bootstrap-vue/nuxt",
+  ],
 
   // Server Middleware
   serverMiddleware: {
@@ -67,7 +68,9 @@ export default {
   // Build Configuration: https://go.nuxtjs.dev/config-build
   build: {
     publicPath: "/app/",
-    transpile: ["ant-design-vue"],
+    babel: {
+      compact: true,
+    },
   },
 
   // Stylelint Configuration: https://stylelint.io/user-guide/usage/node-api/#options
