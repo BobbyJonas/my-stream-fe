@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "es2018",
     "module": "esnext",
     "moduleResolution": "node",
     "lib": ["esnext", "esnext.asyncIterable", "dom"],
@@ -9,13 +9,14 @@
     "sourceMap": true,
     "strict": true,
     "noEmit": true,
+    "preserveValueImports": true,
     "experimentalDecorators": true,
     "baseUrl": ".",
     "paths": {
       "~/*": ["./src/*"],
       "@/*": ["./src/*"]
     },
-    "types": ["@nuxt/types"],
+    "types": ["@types/node", "@nuxt/types"],
     "typeRoots": ["node_modules/@types"],
     "jsx": "preserve",
     "forceConsistentCasingInFileNames": true,

@@ -22,8 +22,10 @@
   "rules": {
     "prettier/prettier": 1,
     "no-useless-constructor": 1,
+    "@typescript-eslint/explicit-module-boundary-types": 0,
     "@typescript-eslint/no-empty-function": 1,
     "@typescript-eslint/no-empty-interface": 0,
-    "@typescript-eslint/no-non-null-assertion": 1
+    "@typescript-eslint/no-non-null-assertion": 1,
+    "vue/no-unused-components": 1
   }
 }
