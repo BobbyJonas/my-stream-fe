@@ -38,8 +38,8 @@ export default {
     "@nuxtjs/stylelint-module",
     "@nuxtjs/tailwindcss",
     "@nuxt/postcss8",
-    "@nuxt/typescript-build",
     "@nuxtjs/composition-api/module",
+    "@nuxt/typescript-build",
     ["@nuxtjs/dotenv", { path: "./" }],
   ],
 
@@ -93,5 +93,9 @@ export default {
       },
       plugins: [],
     },
+  },
+
+  capi: {
+    disableMigrationWarning: true,
   },
 };

@@ -1,13 +1,8 @@
 <template>
-  <div>
-    <b-alert show> 23</b-alert>
-    <b-button>1123 下一步 2</b-button>
-    <h1 class="title px-10"><span>vue-nuxt-template2345</span></h1>
-    <a href="#" @click="sayHello(1)">12342234322312321</a>
-  </div>
+  <div>这里是首页</div>
 </template>
 
-<script lang="ts" setup>
+<script lang="ts">
 import { Component, Prop, Vue } from "vue-property-decorator";
 import {
   onBeforeMount,
@@ -15,31 +10,33 @@ import {
   onUnmounted,
   ref,
   reactive,
+  defineComponent,
+  toRefs,
 } from "@nuxtjs/composition-api";
 
-import socketioService from "~/assets/services/socket-io";
+export default {
+  components: {},
 
-const sayHello = (value: number) => {
-  console.log(value);
+  setup() {
+    interface IState {
+      test: string;
+    }
+
+    const state = reactive<IState>({
+      test: "首页状态",
+    });
+
+    const addTest = () => {
+      state.test = "首页状态 - 2";
+    };
+
+    onBeforeMount(() => {});
+
+    onUnmounted(() => {});
+
+    return { ...toRefs(state), addTest };
+  },
 };
-
-onBeforeMount(() => {
-  console.log("beforeMount");
-  socketioService.setupSocketConnection();
-});
-
-onUnmounted(() => {
-  socketioService.disconnect();
-  console.log("unmounted");
-});
 </script>
 
-<style lang="less" scoped>
-.title {
-  @apply px-11;
-
-  span {
-    font-size: 60px;
-  }
-}
-</style>
+<style lang="less" scoped></style>
