@@ -5,7 +5,7 @@
     "node": true
   },
   "extends": [
-    "@nuxtjs",
+    "@nuxtjs/eslint-config-typescript",
     "plugin:@typescript-eslint/recommended",
     "plugin:nuxt/recommended",
     "plugin:vuejs-accessibility/recommended",

@@ -1,5 +1,5 @@
 <template>
-  <div>这里是首页</div>
+  <div class="index-page-container">这里是首页</div>
 </template>
 
 <script lang="ts">
@@ -39,4 +39,11 @@ export default {
 };
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+@import "@/assets/styles/mixin.less";
+
+.index-page-container {
+  font-size: @font-size-base;
+  color: @text-color-base;
+}
+</style>

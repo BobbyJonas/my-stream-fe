@@ -1,5 +1,5 @@
 <template>
-  <div class="main-content-container"></div>
+  <div class="primary-content-container">1</div>
 </template>
 
 <script lang="ts" setup>
@@ -17,6 +17,8 @@ import socketioService from "~/assets/services/socket-io";
 
 <style lang="less" scoped>
 .primary-content-container {
-  @apply px-10;
+  flex: 1;
+  width: 0;
+  height: 100%;
 }
 </style>

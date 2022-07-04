@@ -54,4 +54,13 @@ export default {
 };
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+.chatroom-content {
+  @apply w-full h-full;
+
+  display: flex;
+  flex-direction: row;
+  background-color: black;
+  overflow: hidden;
+}
+</style>

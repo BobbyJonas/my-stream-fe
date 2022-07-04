@@ -24,6 +24,8 @@
     "bootstrap-vue": "^2.22.0",
     "core-js": "^3.19.3",
     "express": "^4.17.1",
+    "express-rate-limit": "^6.4.0",
+    "mongoose": "^6.4.1",
     "nuxt": "^2.15.8",
     "socket.io": "^4.4.1",
     "socket.io-client": "^4.4.1",
@@ -76,14 +78,5 @@
   "lint-staged": {
     "*.{js,ts,vue}": "eslint --cache --fix",
     "*.{css,less,vue}": "stylelint --fix"
-  },
-  "fork-ts-checker": {
-    "issue": {
-      "exclude": [
-        {
-          "code": "TS1192"
-        }
-      ]
-    }
   }
 }

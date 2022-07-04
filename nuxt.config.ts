@@ -44,11 +44,7 @@ export default {
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: [
-    "@nuxtjs/axios",
-    "./src/assets/modules/socket-io",
-    "bootstrap-vue/nuxt",
-  ],
+  modules: ["@nuxtjs/axios", "./src/assets/modules/socket-io", "bootstrap-vue/nuxt"],
 
   // Server Middleware
   serverMiddleware: {
@@ -92,6 +88,20 @@ export default {
         extend: {},
       },
       plugins: [],
+    },
+  },
+
+  bootstrapVue: {
+    icons: true,
+  },
+
+  typescript: {
+    // fork-ts-checker-webpack-plugin Configuration
+    // https://typescript.nuxtjs.org/guide/lint/#runtime-lint
+    // https://github.com/TypeStrong/fork-ts-checker-webpack-plugin#options
+    typeCheck: {
+      // ignore `no default export` warning when using setup syntax
+      issue: { exclude: [{ code: "TS1192" }] },
     },
   },
 
