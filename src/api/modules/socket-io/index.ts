@@ -23,9 +23,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     nuxt.hook("listen", () => {
       server.listen(port || 4001);
-      const messageLines = [
-        `Socket.io Port: ${chalk.underline.gray(String(port))}`,
-      ];
+      const messageLines = [`Socket.io Port: ${chalk.underline.gray(String(port))}`];
       if (nuxt.options.cli.badgeMessages?.length) messageLines.unshift("");
       nuxt.options.cli.badgeMessages.push(...messageLines);
     });
@@ -35,15 +33,17 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
     });
 
     // Add socket.io events
-    io.on("connection", (socket) => {
+    io.on("connection", socket => {
       console.log(`Socket ID: ${socket.id} connected`);
+
+      socket.on("chat-message", args => {
+        console.log("hahah", args);
+
+        io.emit("new-message", args);
+      });
 
       socket.on("disconnect", () => {
         console.log(`Socket ID: ${socket.id} disconnect`);
-      });
-
-      socket.on("post-tweets", (tweets) => {
-        socket.broadcast.emit("new-tweets", tweets);
       });
     });
   });

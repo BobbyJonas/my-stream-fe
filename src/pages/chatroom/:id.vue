@@ -8,10 +8,10 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 
-import socketioService from "~/assets/services/socket-io";
+import socketioService from "~/assets/services/socket-io-client";
 
 import MainContent from "~/components/chatroom/MainContent.vue";
-import PrimarySidebar from "~/components/chatroom/PrimarySidebar.vue";
+import PrimarySidebar from "~/components/chatroom/PrimarySidebar/index.vue";
 
 export interface IChatroomPageState {}
 
@@ -20,19 +20,23 @@ export default Vue.extend({
     MainContent,
     PrimarySidebar,
   } as Record<string, Component>,
+
   layout: "app",
   middleware: "chatroom-auth",
+
   data() {
     return {
-      test: String,
-    };
+      messageList: [],
+    } as IChatroomPageState;
   },
-  mounted() {
+
+  beforeMount() {
     socketioService.setupSocketConnection();
   },
   beforeDestroy() {
     socketioService.disconnect();
   },
+
   methods: {},
 });
 </script>

@@ -6,14 +6,14 @@
 </template>
 
 <script lang="ts">
-import Vue from "vue";
+import Vue, { Component } from "vue";
 
 export interface IBlogPageState {
   articleList: string;
 }
 
 export default Vue.extend({
-  components: {},
+  components: {} as Record<string, Component>,
 
   async asyncData(context) {
     const $axios = context.$axios;

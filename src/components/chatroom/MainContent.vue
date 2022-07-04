@@ -12,7 +12,7 @@ import {
   reactive,
   defineComponent,
 } from "@nuxtjs/composition-api";
-import socketioService from "~/assets/services/socket-io";
+import socketioService from "~/assets/services/socket-io-client";
 </script>
 
 <style lang="less" scoped>

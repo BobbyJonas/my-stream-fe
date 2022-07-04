@@ -6,6 +6,13 @@
       <h2 class="desc">{{ mapStatusCodeToLabel(error.statusCode) }}</h2>
       <NuxtLink class="link" to="/">返回首页</NuxtLink>
     </div>
+    <h1 class="bottom">
+      <a href="/" class="goto-home">
+        <img class="logo" src="~/static/logo.svg" alt="MyStream Logo" />
+        <span class="text">MyStream</span>
+        <span style="display: none">主页</span>
+      </a>
+    </h1>
   </div>
 </template>
 
@@ -39,7 +46,7 @@ export default Vue.extend({
   display: flex;
   justify-content: center;
   align-items: center;
-  padding-bottom: 20px;
+  padding-bottom: 50px;
   font-size: @font-size-base;
   color: @text-color-base;
   background-color: #f1f7ff;
@@ -63,6 +70,37 @@ export default Vue.extend({
 
     .desc {
       margin-bottom: 0.4rem;
+    }
+  }
+
+  .bottom {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+
+    .goto-home {
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      text-decoration: none;
+      filter: grayscale(1) brightness(1.3);
+      transition: all 0.2s;
+
+      &:hover {
+        filter: none;
+      }
+
+      .logo {
+        height: 40px;
+      }
+
+      .text {
+        margin-left: 6px;
+        padding-bottom: 1px;
+        font-size: @font-size-h2;
+        font-weight: 100;
+      }
     }
   }
 }

@@ -44,7 +44,7 @@ export default {
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: ["@nuxtjs/axios", "./src/assets/modules/socket-io", "bootstrap-vue/nuxt"],
+  modules: ["@nuxtjs/axios", "./src/api/modules/socket-io/index", "bootstrap-vue/nuxt"],
 
   // Server Middleware
   serverMiddleware: {
