@@ -35,7 +35,7 @@ export default {
   buildModules: [
     // https://go.nuxtjs.dev/eslint
     // "@nuxtjs/eslint-module",
-    "@nuxtjs/stylelint-module",
+    // "@nuxtjs/stylelint-module",
     "@nuxtjs/tailwindcss",
     "@nuxt/postcss8",
     "@nuxtjs/composition-api/module",

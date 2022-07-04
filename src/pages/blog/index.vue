@@ -8,7 +8,7 @@
 <script lang="ts">
 import Vue from "vue";
 
-export interface IComponentData {
+export interface IBlogPageState {
   articleList: string;
 }
 
@@ -23,7 +23,7 @@ export default Vue.extend({
   },
 
   data() {
-    return {} as IComponentData;
+    return {} as IBlogPageState;
   },
 });
 </script>

@@ -6,52 +6,35 @@
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from "vue-property-decorator";
-import {
-  onBeforeMount,
-  onMounted,
-  onUnmounted,
-  ref,
-  reactive,
-  defineComponent,
-  toRefs,
-} from "@nuxtjs/composition-api";
+import Vue, { Component } from "vue";
 
 import socketioService from "~/assets/services/socket-io";
 
 import MainContent from "~/components/chatroom/MainContent.vue";
 import PrimarySidebar from "~/components/chatroom/PrimarySidebar.vue";
 
-export default {
+export interface IChatroomPageState {}
+
+export default Vue.extend({
   components: {
-    PrimarySidebar,
     MainContent,
-  },
+    PrimarySidebar,
+  } as Record<string, Component>,
   layout: "app",
-  setup() {
-    interface IState {
-      test: string;
-    }
-
-    const state = reactive<IState>({
-      test: "1",
-    });
-
-    const addTest = () => {
-      state.test += "1";
+  middleware: "chatroom-auth",
+  data() {
+    return {
+      test: String,
     };
-
-    onBeforeMount(() => {
-      socketioService.setupSocketConnection();
-    });
-
-    onUnmounted(() => {
-      socketioService.disconnect();
-    });
-
-    return { ...toRefs(state), addTest };
   },
-};
+  mounted() {
+    socketioService.setupSocketConnection();
+  },
+  beforeDestroy() {
+    socketioService.disconnect();
+  },
+  methods: {},
+});
 </script>
 
 <style lang="less" scoped>
