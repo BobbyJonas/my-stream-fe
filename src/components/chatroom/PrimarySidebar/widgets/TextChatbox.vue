@@ -1,7 +1,7 @@
 <template>
   <div class="sidebar-widget-container">
     <div class="chat-record-wrapper">
-      {{ sendContentInputEnabled.value ? "是" : "否" }}
+      {{ sendContentInputEnabled ? "是" : "否" }}
       <ul>
         <li v-for="(item, index) in chatList" :key="index">
           {{ item.content || "" }}
@@ -11,10 +11,7 @@
     <div class="chat-send-wrapper">
       <b-form-textarea
         v-model="sendContentValue"
-        :class="[
-          'send-content-input',
-          { 'send-content-input--active': sendContentInputEnabled.value },
-        ]"
+        :class="['send-content-input', { 'send-content-input--active': sendContentInputEnabled }]"
         size="sm"
         placeholder="请输入聊天内容"
         rows="3"
@@ -22,7 +19,13 @@
         @focus="activateContentInput"
         @blur="deactivateContentInput"
       />
-      <b-button variant="primary" class="send-button" size="sm" @click="onSendTextClick()">
+      <b-button
+        :disabled="!Boolean(sendContentValue)"
+        variant="primary"
+        class="send-button"
+        size="sm"
+        @click="onSendTextClick()"
+      >
         发送
       </b-button>
     </div>
@@ -47,27 +50,29 @@ interface IMessageItem {
   content?: string;
   dateSent?: string;
 }
+const router = useRouter();
 
 const chatList = reactive<Array<IMessageItem>>([]);
 
 const sendContentValue = ref<string>("");
 const sendContentInputEnabled = ref<boolean>(false);
 
-const router = useRouter();
-
-const onSendTextClick = () => {
-  const route = router.currentRoute;
-  socketioService.socket.emit("chat-message", {
-    roomId: route.params.id,
-    content: sendContentValue.value,
-  });
+const onSendTextClick = (): void => {
+  if (sendContentValue.value?.length > 0) {
+    const route = router.currentRoute;
+    socketioService.socket.emit("chat-message", {
+      roomId: route.params.id,
+      content: sendContentValue.value,
+    });
+  }
+  sendContentValue.value = "";
 };
 
-const activateContentInput = () => {
+const activateContentInput = (): void => {
   sendContentInputEnabled.value = true;
 };
 
-const deactivateContentInput = () => {
+const deactivateContentInput = (): void => {
   sendContentInputEnabled.value = false;
 };
 
@@ -114,6 +119,7 @@ onUnmounted(() => {});
       color: white;
       border: 1px solid rgb(whitesmoke 0.15);
       background-color: rgb(gray 0.25);
+      transition: background-color 0.3s, box-shadow 0.3s;
 
       &::placeholder {
         color: @text-color-light;
@@ -137,6 +143,10 @@ onUnmounted(() => {});
 
       &::-webkit-scrollbar-track {
         background: rgb(gray 0.5);
+      }
+
+      &--active {
+        background-color: rgb(gray 0.4);
       }
     }
 
