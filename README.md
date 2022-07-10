@@ -2,6 +2,43 @@
 
 自定义 P2P 视频直播系统 (前端)
 
+### Setup Local HTTPS Cert
+
+#### Install `mkcert`
+
+```zsh
+brew install mkcert
+brew install nss # if you use Firefox
+```
+
+#### Add `mkcert` to your local root CAs
+
+```zsh
+mkcert -install
+```
+
+#### Generate local certificates
+
+In Terminal, navigate to your site's root directory or whichever directory you'd like the certificates to be located at. And run:
+
+```zsh
+mkcert localhost
+mv localhost-key.pem localhost.pem config
+```
+
+#### Add the following to your `nuxt.config.js`
+
+```json
+server: {
+  https: {
+    key: fs.readFileSync(path.resolve(__dirname, 'config/localhost-key.pem')),
+    cert: fs.readFileSync(path.resolve(__dirname, 'config/localhost.pem'))
+  }
+}
+```
+
+https://web.dev/how-to-use-local-https/
+
 ### Build Setup
 
 #### install dependencies

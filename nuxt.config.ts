@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import * as dotenv from "dotenv";
 dotenv.config();
 
@@ -54,6 +56,10 @@ export default {
   server: {
     host: process.env.HOST,
     port: process.env.PORT_APP,
+    https: {
+      key: fs.readFileSync(path.resolve(__dirname, "config/localhost-key.pem")),
+      cert: fs.readFileSync(path.resolve(__dirname, "config/localhost.pem")),
+    },
   },
 
   globalName: "app",
