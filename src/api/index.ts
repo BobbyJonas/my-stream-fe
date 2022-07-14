@@ -1,8 +1,12 @@
 import express from "express";
+import bodyParser from "body-parser";
 
 import routes from "./routes";
 // Create express instance
 const app = express();
+
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.all("*", (req, res, next) => {

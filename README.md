@@ -1,8 +1,31 @@
-## MyStream
+## 项目名称
 
-自定义 P2P 视频直播系统 (前端)
+MyStream - 自定义 P2P 视频直播系统
 
-### Setup Local HTTPS Cert
+## 环境准备
+
+### 安装 mongoDB
+
+#### macOS 系统
+
+1. 安装 homebrew 包管理器
+
+   ```zsh
+   ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+   ```
+
+2. 安装 mongoDB
+
+   ```zsh
+   brew tap mongodb/brew
+   brew install mongodb-community@5.0
+   ```
+
+#### Linux 系统
+
+TODO:
+
+### Setup Local HTTPS Cert (macOS)
 
 #### Install `mkcert`
 
@@ -39,31 +62,35 @@ server: {
 
 https://web.dev/how-to-use-local-https/
 
+## 项目启动
+
+### 部署网址
+
+本地：http://localhost:3000
+
+<!-- 测试环境：https://ee-ops-navigate.test.gifshow.com/ -->
+
+<!-- 生产环境：https://ee-ops.corp.kuaishou.com/ -->
+
 ### Build Setup
 
 #### install dependencies
 
-```bash
+```zsh
 npm install
 ```
 
 #### serve with hot reload at localhost:3000
 
-```bash
+```zsh
 npm run dev
 ```
 
 #### build for production and launch server
 
-```bash
+```zsh
 npm run build
 npm run start
-```
-
-#### generate static project
-
-```bash
-npm run generate
 ```
 
 ---
