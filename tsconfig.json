@@ -9,6 +9,7 @@
     "sourceMap": true,
     "strict": true,
     "noEmit": true,
+    "noImplicitAny": false,
     "preserveValueImports": true,
     "experimentalDecorators": true,
     "baseUrl": ".",

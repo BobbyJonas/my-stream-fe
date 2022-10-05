@@ -57,6 +57,8 @@ const makeToast = (
   content?: string,
   variant?: "default" | "primary" | "secondary" | "danger" | "warning" | "success" | "info"
 ) => {
+  const _this: any = getCurrentInstance()?.root.type.$app;
+
   _this?.$bvToast.toast(content, {
     title: title ?? "提示",
     variant: variant || "default",

@@ -2,7 +2,7 @@ import http from "http";
 import { Server } from "socket.io";
 import chalk from "chalk";
 
-import { Module } from "@nuxt/types";
+import type { Module } from "@nuxt/types";
 
 interface ISocketModuleOptions {}
 

@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
 import * as dotenv from "dotenv";
-dotenv.config();
+
+const env = process.env.NODE_ENV;
+dotenv.config({ path: `.env.${env}` });
 
 export default {
   ssr: false,
@@ -28,7 +30,7 @@ export default {
   css: ["@/assets/styles/normalize.css", "@/assets/styles/global.less"],
 
   // Plugins to run before rendering page: https://go.nuxtjs.dev/config-plugins
-  plugins: [],
+  plugins: ["@/assets/utils/axios"],
 
   // Auto import components: https://go.nuxtjs.dev/config-components
   components: true,
@@ -42,11 +44,16 @@ export default {
     "@nuxt/postcss8",
     "@nuxtjs/composition-api/module",
     "@nuxt/typescript-build",
-    ["@nuxtjs/dotenv", { path: "./" }],
+    ["@nuxtjs/dotenv", { path: "./", filename: `.env.${env}` }],
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
-  modules: ["@nuxtjs/axios", "./src/api/modules/socket-io/index", "bootstrap-vue/nuxt"],
+  modules: [
+    "@nuxtjs/axios",
+    "./src/api/modules/socket-io/index",
+    "./src/api/modules/mongodb/index",
+    "bootstrap-vue/nuxt",
+  ],
 
   // Server Middleware
   serverMiddleware: {
@@ -101,11 +108,26 @@ export default {
     icons: true,
   },
 
+  // https://axios.nuxtjs.org/options
+  axios: {
+    baseURL: "/api",
+    timeout: 20000,
+  },
+
   typescript: {
     // fork-ts-checker-webpack-plugin Configuration
     // https://typescript.nuxtjs.org/guide/lint/#runtime-lint
     // https://github.com/TypeStrong/fork-ts-checker-webpack-plugin#options
     typeCheck: {
+      // typescript: {
+      //   extensions: {
+      //     vue: {
+      //       enabled: true,
+      //       compiler: "@vue/compiler-sfc",
+      //     },
+      //   },
+      // },
+
       // ignore `no default export` warning when using setup syntax
       issue: { exclude: [{ code: "TS1192" }] },
     },

@@ -1,13 +1,13 @@
 <template>
   <div class="sidebar-widget-container">
     <div class="chat-record-wrapper">
-      {{ sendContentInputEnabled ? "是" : "否" }}
       <ul>
         <li v-for="(item, index) in chatList" :key="index">
           {{ item.content || "" }}
         </li>
       </ul>
     </div>
+    <b-button @click="onConnectDb()">测试 db</b-button>
     <div class="chat-send-wrapper">
       <b-form-textarea
         v-model="sendContentValue"
@@ -42,7 +42,9 @@ import {
   ref,
   reactive,
   useRouter,
+  getCurrentInstance,
 } from "@nuxtjs/composition-api";
+import { AxiosInstance } from "axios";
 import socketioService from "~/assets/services/socket-io-client";
 
 interface IMessageItem {
@@ -57,7 +59,16 @@ const chatList = reactive<Array<IMessageItem>>([]);
 const sendContentValue = ref<string>("");
 const sendContentInputEnabled = ref<boolean>(false);
 
+const onConnectDb = async (): Promise<void> => {
+  const $axios: AxiosInstance = window.$nuxt.$axios;
+
+  const res = await $axios.get("/db/user");
+  console.log(res);
+};
+
 const onSendTextClick = (): void => {
+  console.log(sendContentValue.value);
+
   if (sendContentValue.value?.length > 0) {
     const route = router.currentRoute;
     socketioService.socket.emit("chat-message", {

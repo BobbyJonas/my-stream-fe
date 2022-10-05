@@ -20,12 +20,13 @@
     "@nuxtjs/axios": "^5.12.5",
     "@nuxtjs/composition-api": "^0.32.0",
     "@nuxtjs/dotenv": "^1.4.1",
-    "axios": "^0.21.1",
     "body-parser": "^1.20.0",
     "bootstrap-vue": "^2.22.0",
+    "consola": "^2.15.3",
     "core-js": "^3.19.3",
     "express": "^4.17.1",
     "express-rate-limit": "^6.4.0",
+    "express-session": "^1.17.3",
     "mongoose": "^6.4.1",
     "nuxt": "^2.15.8",
     "socket.io": "^4.4.1",
@@ -35,6 +36,7 @@
     "vue-property-decorator": "^9.1.2",
     "vue-smooth-dnd": "^0.8.1",
     "vuex-class": "^0.3.2",
+    "vuex-module-decorators": "1.2",
     "webpack": "^4.46.0"
   },
   "devDependencies": {
