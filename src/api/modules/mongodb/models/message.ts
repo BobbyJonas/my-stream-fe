@@ -2,7 +2,7 @@ import { Types } from "mongoose";
 import db from "../database";
 const { Schema, model } = db;
 
-export interface IMessage {
+export interface IMessageModel {
   roomId: string; // 房间 id
   timeSent: Date; // 发送时间
   msgType: string; // 消息类型 text/emoji/image/file
@@ -16,7 +16,7 @@ export interface IMessage {
   userAvatar: string; // 用户头像
 }
 
-const messageSchema = new Schema<IMessage>({
+const messageSchema = new Schema<IMessageModel>({
   roomId: String,
   timeSent: { type: Date },
   msgType: String,
@@ -33,7 +33,7 @@ const messageSchema = new Schema<IMessage>({
 
 const MessageModel = db.models.Message || model("Message", messageSchema);
 
-export const createMessageItem = (data: Partial<IMessage>): Promise<IMessage> => {
+export const createMessageItem = (data: Partial<IMessageModel>): Promise<IMessageModel> => {
   const insertObj = new MessageModel(data);
   return new Promise((resolve, reject) => {
     insertObj.save((reason, result) => {
@@ -43,7 +43,7 @@ export const createMessageItem = (data: Partial<IMessage>): Promise<IMessage> =>
   });
 };
 
-export const getMessageList = (): Promise<Array<IMessage>> => {
+export const getMessageList = (): Promise<Array<IMessageModel>> => {
   return new Promise((resolve, reject) => {
     MessageModel.find((reason, result) => {
       if (reason instanceof Error) reject(reason);

@@ -1,7 +1,7 @@
 import db from "../database";
 const { Schema, model } = db;
 
-export interface IRoom {
+export interface IRoomModel {
   name: string;
   code: string; // 唯一的 code
   photo: string; // 头像
@@ -11,7 +11,7 @@ export interface IRoom {
   lastActiveTime: Date; // 最后一次活跃时间
 }
 
-const roomSchema = new Schema<IRoom>({
+const roomSchema = new Schema<IRoomModel>({
   name: { type: String },
   code: { type: String, unique: true },
   photo: { type: String, default: "/img/picture.png" },
@@ -23,7 +23,7 @@ const roomSchema = new Schema<IRoom>({
 
 const RoomModel = db.models.Room || model("Room", roomSchema);
 
-export const createRoomItem = (data: Partial<IRoom>): Promise<IRoom> => {
+export const createRoomItem = (data: Partial<IRoomModel>): Promise<IRoomModel> => {
   const insertObj = new RoomModel(data);
   return new Promise((resolve, reject) => {
     insertObj.save((reason, result) => {
@@ -33,7 +33,7 @@ export const createRoomItem = (data: Partial<IRoom>): Promise<IRoom> => {
   });
 };
 
-export const getRoomList = (): Promise<Array<IRoom>> => {
+export const getRoomList = (): Promise<Array<IRoomModel>> => {
   return new Promise((resolve, reject) => {
     RoomModel.find((reason, result) => {
       if (reason instanceof Error) reject(reason);

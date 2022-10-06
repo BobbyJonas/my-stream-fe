@@ -1,6 +1,6 @@
 import consola from "consola";
 import type { RequestHandler, ErrorRequestHandler } from "express";
-import { createUserItem, IUser, getUserList } from "../models/user";
+import { createUserItem, getUserList } from "../models/user";
 
 export const read: RequestHandler = (req, res) => {
   return getUserList()

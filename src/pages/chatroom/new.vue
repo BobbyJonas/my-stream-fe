@@ -2,16 +2,21 @@
   <div class="chatroom-new">
     <h3 class="main-title">选择一个用户角色以开始</h3>
     <h4 v-if="!ifUserRoleExists" class="no-role-hint">
-      <b-icon class="icon-no-role" icon="person-x" /><span class="content"
-        >当前没有用户角色，请创建一个</span
-      >
+      <b-icon class="icon-no-role" icon="person-x" />
+      <span class="content">当前没有用户角色，请创建一个</span>
     </h4>
-    <b-overlay :show="loading" rounded="sm">
-      <div class="new-role-container">
+    <b-overlay
+      :show="loading"
+      variant="light"
+      :opacity="0.65"
+      rounded="sm"
+      :style="{ width: '100%' }"
+    >
+      <div v-if="currentAddUser" class="new-role-container">
         <aside class="avatar-container"></aside>
         <div class="new-role-form">
           <h4 class="form-title">填写角色信息</h4>
-          <b-form @submit="onSubmit" @reset="onReset">
+          <b-form @submit="onSubmitUserInfo" @reset="onResetUserInfo">
             <b-form-group
               id="input-group-1"
               label="电子邮箱: "
@@ -35,16 +40,62 @@
                 required
               />
             </b-form-group>
-
             <div class="form-operation">
-              <b-button type="reset" variant="outline-secondary">清空表单</b-button>
+              <b-button
+                variant="outline-secondary"
+                @click="
+                  () => {
+                    onResetUserInfo();
+                    currentAddUser = false;
+                  }
+                "
+              >
+                <b-icon class="btn-icon" icon="arrow-left" />
+                <span>返回</span>
+              </b-button>
               <b-button type="submit" class="btn-add" variant="outline-primary">
-                <b-icon class="icon-plus" icon="person-plus" />
+                <b-icon class="btn-icon" icon="person-plus" />
                 <span>添加</span>
               </b-button>
             </div>
           </b-form>
         </div>
+      </div>
+      <div v-else class="role-list">
+        <h4 class="list-title">当前用户角色</h4>
+        <ul class="list-wrapper">
+          <li
+            v-for="(item, index) in userRoleList"
+            :key="index"
+            :class="['card-item', { 'card-item--active': selectRoleIndex === index }]"
+            @click="updateSelectIndex(index)"
+          >
+            <div class="card-avatar"></div>
+            <p class="card-name">{{ item.nickname }}</p>
+          </li>
+          <li
+            class="card-item card-add"
+            @click="
+              () => {
+                onResetUserInfo();
+                currentAddUser = true;
+              }
+            "
+          >
+            <b-icon class="icon-plus" icon="plus-circle" />
+          </li>
+        </ul>
+        <b-button
+          pill
+          size="lg"
+          variant="primary"
+          :disabled="selectRoleIndex < 0"
+          class="btn-add-chatroom"
+          @click="onCreateChatroom"
+        >
+          <b-icon class="btn-icon" icon="chat-left" />
+          <span>创建聊天室</span>
+        </b-button>
       </div>
     </b-overlay>
   </div>
@@ -52,17 +103,15 @@
 
 <script lang="ts">
 import Vue, { Component } from "vue";
-
-export interface IUserInfoForm {
-  email: string;
-  nickname: string;
-}
+import { IUserModel } from "~/api/modules/mongodb/models/user";
 
 export interface IChatroomNewState {
   ifUserRoleExists: boolean;
-  userInfoForm: IUserInfoForm;
-  userRoleArray: Array<IUserInfoForm>;
+  userInfoForm: Partial<IUserModel>;
+  userRoleList: Array<IUserModel>;
   loading: boolean;
+  currentAddUser: boolean;
+  selectRoleIndex: number;
 }
 
 export default Vue.extend({
@@ -77,19 +126,30 @@ export default Vue.extend({
         email: "",
         nickname: "",
       },
-      userRoleArray: [],
+      userRoleList: [],
       loading: false,
+      currentAddUser: false,
+      selectRoleIndex: -1,
     } as IChatroomNewState;
   },
 
   beforeMount() {
-    this.ifUserRoleExists = !!window.localStorage["user-role"];
+    const storageUserRole = window.localStorage["user-role"];
+    if (storageUserRole) {
+      this.userRoleList = JSON.parse(storageUserRole as string) || [];
+    }
+    this.ifUserRoleExists = !!storageUserRole;
+    if (!this.ifUserRoleExists) {
+      this.currentAddUser = true;
+    } else {
+      this.selectRoleIndex = 0;
+    }
   },
 
   beforeDestroy() {},
 
   methods: {
-    onSubmit(event: FormDataEvent) {
+    onSubmitUserInfo(event: FormDataEvent) {
       if (this.loading) return;
       this.loading = true;
       event.preventDefault();
@@ -97,14 +157,19 @@ export default Vue.extend({
       this.$axios
         .post("/db/user", { ...this.userInfoForm })
         .then(res => {
-          if (res.status === 200) {
+          const { status, data } = res;
+          if (status === 200) {
             (this as any)?.$bvToast?.toast(`用户 ${this.userInfoForm.nickname} 已成功添加`, {
               title: "添加成功",
               variant: "success",
               solid: true,
             });
-            this.userInfoForm.email = "";
-            this.userInfoForm.nickname = "";
+            this.onResetUserInfo();
+            this.userRoleList.push(data as IUserModel);
+            window.localStorage["user-role"] = JSON.stringify(this.userRoleList);
+            this.ifUserRoleExists = true;
+            this.selectRoleIndex = this.userRoleList.length - 1;
+            this.currentAddUser = false;
           }
         })
         .finally(() => {
@@ -112,10 +177,20 @@ export default Vue.extend({
         });
     },
 
-    onReset(event: FormDataEvent) {
-      event.preventDefault();
+    onResetUserInfo(event?: FormDataEvent) {
+      event?.preventDefault();
       this.userInfoForm.email = "";
       this.userInfoForm.nickname = "";
+    },
+
+    updateSelectIndex(index: number) {
+      this.selectRoleIndex = index;
+    },
+
+    onCreateChatroom() {
+      this.loading = true;
+      window.localStorage["current-role"] = JSON.stringify(this.userRoleList[this.selectRoleIndex]);
+      // TODO: 生成聊天室 id
     },
   },
 });
@@ -125,6 +200,8 @@ export default Vue.extend({
 @import "@/assets/styles/mixin.less";
 
 @header-height: 36px;
+@card-height: 160px;
+@card-width: 128px;
 
 .chatroom-new {
   @apply w-full;
@@ -144,12 +221,18 @@ export default Vue.extend({
     @apply text-2xl font-medium;
   }
 
+  .btn-icon {
+    margin-right: 0.2em;
+    vertical-align: -0.2em;
+  }
+
   .main-title {
     margin-bottom: 20px;
+    text-align: center;
   }
 
   .no-role-hint {
-    margin-bottom: 16px;
+    margin-bottom: 24px;
     font-weight: normal;
     text-align: center;
     color: #666;
@@ -165,21 +248,23 @@ export default Vue.extend({
 
   .new-role-container {
     display: flex;
+    justify-content: center;
     align-items: flex-start;
-    margin-top: 24px;
+    padding: 12px 0;
+    transition: all 0.3s;
 
     .avatar-container {
       display: block;
-      width: 108px;
-      height: 108px;
-      margin-right: 32px;
+      width: 128px;
+      height: 128px;
+      margin-right: 42px;
       background-color: rgb(black 0.05);
       border-radius: @border-radius-infinite;
     }
 
     .new-role-form {
       width: 40vw;
-      max-width: 380px;
+      max-width: 480px;
       margin-right: 12px;
 
       .form-title {
@@ -190,14 +275,91 @@ export default Vue.extend({
         display: flex;
         justify-content: space-between;
         margin-top: 20px;
+      }
+    }
+  }
 
-        .btn-add {
+  .role-list {
+    text-align: center;
+    width: 100%;
+    overflow: hidden;
+    transition: all 0.3s;
+
+    .list-title {
+      margin-bottom: 64px;
+      font-weight: normal;
+    }
+
+    .list-wrapper {
+      padding: 20px 12px;
+      overflow: auto;
+      white-space: nowrap;
+
+      .card-item {
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        height: @card-height;
+        width: @card-width;
+        padding: 14px 0;
+        margin: 0 10px;
+        background-color: rgba(black, 0.02);
+        border: 1px solid transparent;
+        border-radius: 5px;
+        vertical-align: top;
+        cursor: pointer;
+
+        &:hover {
+          background-color: rgba(black, 0.05);
+        }
+
+        &:active {
+          background-color: rgba(black, 0.08);
+        }
+
+        &--active {
+          font-weight: bolder;
+          background-color: rgba(black, 0.08);
+          border-color: rgba(black, 0.02);
+        }
+
+        .card-avatar {
+          display: inline-block;
+          height: 72px;
+          width: 72px;
+          border-radius: @border-radius-infinite;
+          background-color: rgba(black, 0.5);
+        }
+      }
+
+      .card-add {
+        justify-content: center;
+        margin: 0;
+        background: none !important;
+
+        .icon-plus {
+          font-size: 64px;
+          color: rgba(black, 0.1);
+        }
+
+        &:hover {
           .icon-plus {
-            margin-right: 2px;
-            vertical-align: -3px;
+            color: rgba(black, 0.2);
+          }
+        }
+
+        &:active {
+          .icon-plus {
+            color: rgba(black, 0.3);
           }
         }
       }
+    }
+
+    .btn-add-chatroom {
+      margin: 40px 0 10px;
+      padding: 8px 20px;
     }
   }
 }

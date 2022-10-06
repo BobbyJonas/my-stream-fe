@@ -12,7 +12,7 @@ export enum IUserSexEnum {
   FEMALE = "2",
 }
 
-export interface IUser {
+export interface IUserModel {
   name: string;
   password: string;
   code: string; // 唯一的 code
@@ -29,7 +29,7 @@ export interface IUser {
   lastLoginTime: Date; // 最后一次登录
 }
 
-const userSchema = new Schema<IUser>({
+const userSchema = new Schema<IUserModel>({
   name: { type: String },
   password: String,
   code: { type: String, unique: true },
@@ -46,11 +46,11 @@ const userSchema = new Schema<IUser>({
   lastLoginTime: { type: Date },
 });
 
-const UserModel = db.models.User || model("User", userSchema);
+const UserModel = db.models?.User || model("User", userSchema);
 
-export const createUserItem = (data: Partial<IUser>): Promise<IUser> => {
-  const insertObj = new UserModel(data);
+export const createUserItem = (data: Partial<IUserModel>): Promise<IUserModel> => {
   return new Promise((resolve, reject) => {
+    const insertObj = new UserModel(data);
     insertObj.save((reason, result) => {
       if (reason instanceof Error) reject(reason);
       else resolve(result);
@@ -58,7 +58,7 @@ export const createUserItem = (data: Partial<IUser>): Promise<IUser> => {
   });
 };
 
-export const getUserList = (): Promise<Array<IUser>> => {
+export const getUserList = (): Promise<Array<IUserModel>> => {
   return new Promise((resolve, reject) => {
     UserModel.find((reason, result) => {
       if (reason instanceof Error) reject(reason);
