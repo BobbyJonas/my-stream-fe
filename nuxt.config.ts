@@ -64,8 +64,8 @@ export default {
     host: process.env.HOST,
     port: process.env.PORT_APP,
     https: {
-      key: fs.readFileSync(path.resolve(__dirname, "config/localhost-key.pem")),
-      cert: fs.readFileSync(path.resolve(__dirname, "config/localhost.pem")),
+      key: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-key.pem")),
+      cert: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-cert.pem")),
     },
   },
 

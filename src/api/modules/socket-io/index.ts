@@ -1,4 +1,6 @@
-import http from "http";
+import fs from "fs";
+import path from "path";
+import https from "https";
 import { Server } from "socket.io";
 import chalk from "chalk";
 
@@ -13,7 +15,12 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
     const host = process.env.HOST;
     const port = process.env.PORT_SOCKET || 4001;
 
-    const server = http.createServer(this.nuxt.renderer.app);
+    const server = https.createServer({
+      ...(this.nuxt.renderer.app || {}),
+      key: fs.readFileSync(path.resolve(__dirname, "../../../../config/cert/localhost-key.pem")),
+      cert: fs.readFileSync(path.resolve(__dirname, "../../../../config/cert/localhost-cert.pem")),
+    });
+
     const io = new Server(server, {
       cors: {
         methods: ["GET", "POST"],
