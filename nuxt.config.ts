@@ -136,4 +136,6 @@ export default {
   capi: {
     disableMigrationWarning: true,
   },
+
+  telemetry: false,
 };
