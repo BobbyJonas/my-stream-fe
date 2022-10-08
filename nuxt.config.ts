@@ -5,6 +5,8 @@ import * as dotenv from "dotenv";
 const env = process.env.NODE_ENV;
 dotenv.config({ path: `.env.${env}` });
 
+const sslEnabled = !!process.env.SSL;
+
 export default {
   ssr: false,
   srcDir: "src",
@@ -63,10 +65,14 @@ export default {
   server: {
     host: process.env.HOST,
     port: process.env.PORT_APP,
-    https: {
-      key: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-key.pem")),
-      cert: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-cert.pem")),
-    },
+    ...(sslEnabled
+      ? {
+          https: {
+            key: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-key.pem")),
+            cert: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-cert.pem")),
+          },
+        }
+      : {}),
   },
 
   globalName: "app",

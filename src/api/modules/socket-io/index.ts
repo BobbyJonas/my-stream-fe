@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import http from "http";
 import https from "https";
 import { Server } from "socket.io";
 import chalk from "chalk";
@@ -14,12 +15,19 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
   nuxt.hook("render:before", () => {
     const host = process.env.HOST;
     const port = process.env.PORT_SOCKET || 4001;
+    const sslEnabled = process.env.SSL;
 
-    const server = https.createServer({
-      ...(this.nuxt.renderer.app || {}),
-      key: fs.readFileSync(path.resolve(__dirname, "../../../../config/cert/localhost-key.pem")),
-      cert: fs.readFileSync(path.resolve(__dirname, "../../../../config/cert/localhost-cert.pem")),
-    });
+    const server = sslEnabled
+      ? https.createServer({
+          ...(this.nuxt.renderer.app || {}),
+          key: fs.readFileSync(
+            path.resolve(__dirname, "../../../../config/cert/localhost-key.pem")
+          ),
+          cert: fs.readFileSync(
+            path.resolve(__dirname, "../../../../config/cert/localhost-cert.pem")
+          ),
+        })
+      : http.createServer(this.nuxt.renderer.app);
 
     const io = new Server(server, {
       cors: {

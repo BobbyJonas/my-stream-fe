@@ -5,8 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "nuxt dev",
+    "dev:https": "cross-env SSL=true nuxt dev",
     "build": "vue-tsc --noEmit && nuxt build",
     "start": "nuxt start",
+    "start:https": "cross-env SSL=true nuxt start",
     "generate": "nuxt generate",
     "lint:js": "eslint --ext \".ts,.js,.vue\" --ignore-path .gitignore .",
     "lintfix:js": "eslint --ext \".ts,.js,.vue\" --ignore-path .gitignore . --fix --no-ignore",
@@ -24,6 +26,7 @@
     "bootstrap-vue": "^2.22.0",
     "consola": "^2.15.3",
     "core-js": "^3.19.3",
+    "cross-env": "^7.0.3",
     "express": "^4.17.1",
     "express-rate-limit": "^6.4.0",
     "express-session": "^1.17.3",
