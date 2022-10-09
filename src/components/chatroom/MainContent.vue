@@ -22,6 +22,16 @@ const _this: any = getCurrentInstance()?.root.type.$app;
 
 const videoControlRef = ref<HTMLVideoElement | null>(null);
 
+const iceServers = [
+  { url: "stun:stun1.l.google.com:19302" },
+  { url: "stun:stun.miwifi.com" },
+  { url: "stun:stun.qq.com" },
+  { url: "stun:stun3.l.google.com:19302" },
+  { url: "stun:stun.syncthing.net" },
+  { url: "stun:stun4.l.google.com:19302" },
+  { url: "stun:stun.newtocktech.com" },
+];
+
 const peerConnection: RTCPeerConnection =
   (window as any).RTCPeerConnection ||
   (window as any).mozRTCPeerConnection ||
