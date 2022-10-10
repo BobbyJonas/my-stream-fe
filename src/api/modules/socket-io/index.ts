@@ -7,6 +7,8 @@ import chalk from "chalk";
 
 import type { Module } from "@nuxt/types";
 
+import { createConnectionItem, removeConnectionItem } from "../mongodb/models/connection";
+
 interface ISocketModuleOptions {}
 
 const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
@@ -50,6 +52,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
     // Add socket.io events
     io.on("connection", socket => {
       console.log(`Socket ID: ${socket.id} connected`);
+      createConnectionItem({ socketId: socket.id });
 
       socket.on("chat-message", args => {
         console.log("hahah", args);
@@ -59,6 +62,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
       socket.on("disconnect", () => {
         console.log(`Socket ID: ${socket.id} disconnect`);
+        removeConnectionItem({ socketId: socket.id });
       });
     });
   });

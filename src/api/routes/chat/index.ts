@@ -1,10 +1,8 @@
 import { Router } from "express";
+import chatroom from "./chatroom";
 
 const router = Router();
 
-// Test route
-router.use("/test", (req, res) => {
-  res.end("Test API!");
-});
+router.use("/chatroom", chatroom);
 
 export default router;

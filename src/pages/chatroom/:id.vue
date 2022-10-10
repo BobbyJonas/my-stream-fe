@@ -10,7 +10,7 @@ import Vue, { Component } from "vue";
 
 import socketioService from "~/assets/services/socket-io-client";
 
-import MainContent from "~/components/chatroom/MainContent.vue";
+import MainContent from "~/components/chatroom/MainContent/index.vue";
 import PrimarySidebar from "~/components/chatroom/PrimarySidebar/index.vue";
 
 export interface IChatroomPageState {}
