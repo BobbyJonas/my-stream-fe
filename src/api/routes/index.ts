@@ -2,7 +2,8 @@ import { Router } from "express";
 
 import { rateLimit } from "express-rate-limit";
 
-import test from "./test";
+import healthCheck from "./health-check";
+
 import chat from "./chat";
 import db from "./db";
 
@@ -15,7 +16,8 @@ const dbLimiter = rateLimit({
 const router = Router();
 
 // api 路由
-router.use("/test", test);
+router.use("/health-check", healthCheck);
+
 router.use("/chat", chat);
 router.use("/db", dbLimiter, db);
 

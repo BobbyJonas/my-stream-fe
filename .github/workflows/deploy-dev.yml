@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-18.04
     environment: development
 
@@ -34,6 +34,7 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
+          script_stop: true
           script: |
             export NVM_DIR=~/.nvm
             source ~/.nvm/nvm.sh
@@ -56,9 +57,19 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
+          script_stop: true
           script: |
             export NVM_DIR=~/.nvm
             source ~/.nvm/nvm.sh
             PATH=$PATH:/${{secrets.REMOTE_USER}}/.npm-global/bin
             cd ${{secrets.DEPLOY_PATH}}
             pm2 start cross-env --name my-stream-app -- NODE_ENV=development npm run start
+
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Ping the Server
+        run: curl --connect-timeout 5 ${{secrets.REMOTE_HOST}}:${{secrets.DEPLOY_PORT}}/api/health-check
