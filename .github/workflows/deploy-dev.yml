@@ -72,4 +72,4 @@ jobs:
 
     steps:
       - name: Ping the Server
-        run: curl --connect-timeout 5 ${{secrets.REMOTE_HOST}}:${{secrets.DEPLOY_PORT}}/api/health-check
+        run: curl -s --connect-timeout 5 ${{secrets.REMOTE_HOST}}:${{secrets.DEPLOY_PORT}}/api/health-check | grep 'Ok'
