@@ -5,7 +5,7 @@ class SocketioService {
   constructor() {}
 
   setupSocketConnection() {
-    const port = process.env.PORT_SOCKET || 4001;
+    const port = process.env.PORT_SOCKET;
     this.socket = io(`https://localhost:${port}`);
   }
 

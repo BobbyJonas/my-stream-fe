@@ -14,7 +14,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
   nuxt.hook("render:before", () => {
     const host = process.env.HOST;
-    const port = process.env.PORT_SOCKET || 4001;
+    const port = process.env.PORT_SOCKET;
     const sslEnabled = process.env.SSL;
 
     const server = sslEnabled
@@ -37,7 +37,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
     });
 
     nuxt.hook("listen", () => {
-      server.listen(port || 4001);
+      server.listen(port);
       const messageLines = [`Socket.io Port: ${chalk.underline.gray(String(port))}`];
       if (nuxt.options.cli.badgeMessages?.length) messageLines.unshift("");
       nuxt.options.cli.badgeMessages.push(...messageLines);
