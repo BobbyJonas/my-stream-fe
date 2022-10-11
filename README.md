@@ -4,11 +4,9 @@ MyStream - 自定义 P2P 视频直播系统
 
 ## 环境准备
 
-### 安装 Docker
-
-https://www.docker.com
-
 ### 配置 mongoDB
+
+在 Docker [[下载网址](https://www.docker.com/products/docker-desktop/)] 下进行安装
 
 ```zsh
 docker pull mongo:5.0.13
@@ -20,40 +18,44 @@ docker run -d --name mongodb -v /home/mongo/db:/data/db -p 27017:27017 mongo:5.0
 
 开启本地 HTTPS 需要额外生成本地 SSL 证书，并在项目中进行引用。
 
-- [macOS 推荐] 使用 `mkcert` ([项目链接](https://github.com/FiloSottile/mkcert/releases))
-- 使用系统自带的 OpenSSL
+- [macOS 推荐] 使用 mkcert [[链接](https://github.com/FiloSottile/mkcert/releases)]
+- 使用 OpenSSL
 
-> 相关链接: https://web.dev/how-to-use-local-https/
+> 相关链接: <https://web.dev/how-to-use-local-https/>
 
-#### 使用 `mkcert` (仅 macOS)
+<details>
+<summary>使用 <code>mkcert</code> (仅 macOS)</summary>
 
-> 1. 安装 `mkcert`
->
->    ```zsh
->    brew install mkcert
->    brew install nss # if you use Firefox
->    ```
->
-> 2. 添加 `mkcert` 到你本地 CA 中
->
->    ```zsh
->    mkcert -install
->    ```
->
-> 3. 生成本地证书
->
->    在终端中 `cd` 到本项目的根目录，然后执行
->
->    ```zsh
->    mkcert localhost
->    mv localhost-key.pem localhost.pem config/cert
->    ```
->
-> 4. [可选] 更改证书引用路径
->
->    如果证书名字有更改的话，在 `nuxt.config.js` 和 `src/api/modules/socket-io/index.ts` 中更改引用路径
+1. 安装 `mkcert`
 
-#### 使用 OpenSSL
+   ```zsh
+   brew install mkcert
+   brew install nss # if you use Firefox
+   ```
+
+2. 添加 `mkcert` 到你本地 CA 中
+
+   ```zsh
+   mkcert -install
+   ```
+
+3. 生成本地证书
+
+   在终端中 `cd` 到本项目的根目录，然后执行
+
+   ```zsh
+   mkcert localhost
+   mv localhost-key.pem localhost.pem config/cert
+   ```
+
+4. [可选] 更改证书引用路径
+
+   如果证书名字有更改的话，在 `nuxt.config.js` 和 `src/api/modules/socket-io/index.ts` 中更改引用路径
+
+</details>
+
+<details>
+<summary>使用 OpenSSL</summary>
 
 ```zsh
 openssl req -x509 -nodes -new -sha256 -days 1024 -newkey rsa:2048 -keyout RootCA.key -out RootCA.pem -subj "/C=US/CN=Example-Root-CA"
@@ -64,10 +66,12 @@ mv RootCA.key ./config/cert/localhost-key.key
 rm RootCA.pem
 ```
 
-同样地，检查下列文件中的证书引用路径是否正确。
+把证书设置为本地信任，然后检查下列文件中证书引用路径是否正确。
 
 - `nuxt.config.js`
 - `src/api/modules/socket-io/index.ts`
+
+</details>
 
 ## 项目启动
 
@@ -75,15 +79,15 @@ rm RootCA.pem
 
 #### 本地
 
-- `dev` 启动: http://localhost:3000
+- `dev` 启动: <http://localhost:3000>
 
-- `dev:https` 启动: https://localhost:3000
+- `dev:https` 启动: <https://localhost:3000>
 
-**注意**: 非 https 环境下，无法正常使用 WebRTC.
+> **注意**: 非 https 环境下，无法正常使用 WebRTC.
 
 #### 测试环境
 
-https://mystream-dev.jonaspete.com
+<https://mystream-dev.jonaspete.com>
 
 ### 构建命令
 
@@ -93,24 +97,23 @@ https://mystream-dev.jonaspete.com
 npm i
 ```
 
-#### 开发
+#### 本地调试 (https)
 
-- http: `npm run dev`
-
-- https: `npm run dev:https`
+```zsh
+npm run dev:https
+```
 
 #### 生产环境
 
-构建: `npm run build`
+构建并启动服务 (http)
 
-启动服务
-
-- http: `npm run start`
-
-- https: `npm run start:https`
+```zsh
+npm run build
+npm run start
+```
 
 ---
 
-App built by Nuxt.
+App built by NuxtJS.
 
 For detailed explanation on how things work, check out [Nuxt.js docs](https://nuxtjs.org).
