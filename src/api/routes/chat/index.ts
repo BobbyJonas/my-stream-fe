@@ -1,8 +1,8 @@
 import { Router } from "express";
-import chatroom from "./chatroom";
+import room from "./room";
 
 const router = Router();
 
-router.use("/chatroom", chatroom);
+router.use("/room", room);
 
 export default router;

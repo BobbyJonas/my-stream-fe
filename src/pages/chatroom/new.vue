@@ -95,6 +95,7 @@
         >
           <b-icon class="btn-icon" icon="chat-left" />
           <span>创建聊天室</span>
+          {{ chatroomStore.currentUserRole }}
         </b-button>
       </div>
     </b-overlay>
@@ -104,6 +105,7 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { IUserModel } from "~/api/modules/mongodb/models/user";
+import { ChatroomStore } from "~/store";
 
 export interface IChatroomNewState {
   ifUserRoleExists: boolean;
@@ -133,11 +135,20 @@ export default Vue.extend({
     } as IChatroomNewState;
   },
 
+  computed: {
+    chatroomStore: () => ChatroomStore || {},
+  },
+
   beforeMount() {
     const storageUserRole = window.localStorage["user-role"];
-    if (storageUserRole) {
-      this.userRoleList = JSON.parse(storageUserRole as string) || [];
-    }
+    if (storageUserRole) this.userRoleList = JSON.parse(storageUserRole as string) || [];
+
+    const storageCurrentRole = window.localStorage["current-role"];
+    console.log(storageCurrentRole);
+
+    if (storageCurrentRole)
+      ChatroomStore.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+
     this.ifUserRoleExists = !!storageUserRole;
     if (!this.ifUserRoleExists) {
       this.currentAddUser = true;
@@ -188,9 +199,14 @@ export default Vue.extend({
     },
 
     onCreateChatroom() {
-      this.loading = true;
-      window.localStorage["current-role"] = JSON.stringify(this.userRoleList[this.selectRoleIndex]);
-      // TODO: 生成聊天室 id
+      if (this.userRoleList[this.selectRoleIndex]) {
+        this.loading = true;
+        window.localStorage["current-role"] = JSON.stringify(
+          this.userRoleList[this.selectRoleIndex]
+        );
+        // TODO: 生成聊天室 id
+        ChatroomStore.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+      }
     },
   },
 });

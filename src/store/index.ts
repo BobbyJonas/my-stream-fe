@@ -1,17 +1,7 @@
-import Vue from "vue";
-import Vuex, { Store } from "vuex";
+import { Store } from "vuex";
+import { initializeStores } from "~/assets/utils/store-accessor";
 
-import chatroom from "./chatroom";
+const initializer = (store: Store<any>) => initializeStores(store);
 
-Vue.use(Vuex);
-
-const store = () =>
-  new Store({
-    state: {},
-    mutations: {},
-    modules: {
-      chatroom,
-    },
-  });
-
-export default store;
+export const plugins = [initializer];
+export * from "~/assets/utils/store-accessor";

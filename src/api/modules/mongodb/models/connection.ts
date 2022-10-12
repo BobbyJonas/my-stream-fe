@@ -5,11 +5,11 @@ const { Schema, model } = db;
 export interface IConnectionModel {
   socketId: string;
   roomId: string;
-  userId: Types.ObjectId;
+  userId: string;
 }
 
 const connectionSchema = new Schema<IConnectionModel>({
-  socketId: String,
+  socketId: { type: String, unique: true },
   roomId: String,
   userId: {
     type: Types.ObjectId,
@@ -41,6 +41,13 @@ export const getConnectionList = (): Promise<Array<IConnectionModel>> => {
   });
 };
 
-export const removeConnectionItem = (constraints: Record<string, any>) => {
+export const removeConnectionItem = (constraints: Partial<IConnectionModel>) => {
   return ConnectionModel.deleteOne(constraints);
+};
+
+export const modifyConnectionItem = (
+  constraints: Partial<IConnectionModel>,
+  value: Partial<IConnectionModel>
+) => {
+  return ConnectionModel.findOneAndUpdate(constraints, { $set: value });
 };

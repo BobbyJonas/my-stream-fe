@@ -32,7 +32,7 @@ export default {
   css: ["@/assets/styles/normalize.css", "@/assets/styles/global.less"],
 
   // Plugins to run before rendering page: https://go.nuxtjs.dev/config-plugins
-  plugins: ["@/assets/utils/axios"],
+  plugins: ["@/assets/utils/axios", "@/assets/utils/axios-accessor"],
 
   // Auto import components: https://go.nuxtjs.dev/config-components
   components: true,

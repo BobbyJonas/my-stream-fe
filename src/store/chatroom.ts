@@ -1,36 +1,23 @@
-/* eslint-disable require-await */
-export interface IChatroomState {
-  value: string;
-  list: Array<number>;
-}
+import { Module, VuexModule, Mutation, Action } from "vuex-module-decorators";
+import { $axios } from "~/assets/utils/store-api";
+import { IUserModel } from "~/api/modules/mongodb/models/user";
 
-const state: IChatroomState = {
-  value: "Hello World",
-  list: [1, 2, 3, 4, 5],
-};
-
-const getters = {
-  include: state => val => {
-    return state.list.includes(val);
-  },
-};
-
-const mutations = {
-  SET_VALUE(state, value) {
-    state.value = value;
-  },
-};
-
-const actions = {
-  async getInfo({ state, commit }, val) {
-    commit("SET_VALUE", val);
-  },
-};
-
-export default {
+@Module({
+  name: "chatroom",
+  stateFactory: true,
   namespaced: true,
-  state,
-  getters,
-  actions,
-  mutations,
-};
+})
+export default class Chatroom extends VuexModule {
+  public currentUserRole: Partial<IUserModel> | undefined;
+
+  @Mutation
+  public setCurrentUserRole(value: Partial<IUserModel>) {
+    this.currentUserRole = value;
+  }
+
+  @Action
+  public async enterChatroom() {
+    // const { data } = await $axios.get<IChatroomState[]>("/api/todos");
+    // this.set(data);
+  }
+}
