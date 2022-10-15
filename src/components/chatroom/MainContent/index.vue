@@ -1,27 +1,35 @@
 <template>
-  <div class="primary-content-container">
-    <video ref="videoControlRef" class="video-chat-container" autoplay></video>
-  </div>
+  <b-overlay
+    :show="!initReady"
+    variant="light"
+    :opacity="0.65"
+    rounded="sm"
+    :style="{ width: '100%' }"
+  >
+    <div class="primary-content-container">
+      <video ref="videoControlRef" class="video-chat-container" muted autoplay></video>
+    </div>
+  </b-overlay>
 </template>
 
-<script lang="ts" setup>
-import { Component, Prop, Vue } from "vue-property-decorator";
-import {
-  onBeforeMount,
-  onMounted,
-  onUnmounted,
-  ref,
-  reactive,
-  computed,
-  defineComponent,
-  getCurrentInstance,
-} from "@nuxtjs/composition-api";
+<script lang="ts">
+import Vue, { Component } from "vue";
+import { mapMutations, mapState, mapActions } from "vuex";
+
+import type { AxiosInstance } from "axios";
 import { iceServerPublicList, userMediaVideoTrackConstraints } from "./utils";
+
 import socketioService from "~/assets/services/socket-io-client";
 
-const _this: any = getCurrentInstance()?.root.type.$app;
+import { makeToast, Properties } from "~/assets/utils/common";
+import { IUserModel } from "~/api/modules/mongodb/models/user";
+import ChatroomStore, { ChatroomInitStepEnum } from "~/store/chatroom";
 
-const videoControlRef = ref<HTMLVideoElement | null>(null);
+export interface IMainContentState {
+  userMediaAvailable: boolean | undefined;
+}
+
+type State = IMainContentState;
 
 const PeerConnection =
   window.RTCPeerConnection ||
@@ -29,7 +37,7 @@ const PeerConnection =
   (window as any).webkitRTCPeerConnection ||
   (window as any).msRTCPeerConnection;
 
-const peer = new PeerConnection({
+const pcInstance = new PeerConnection({
   iceServers: iceServerPublicList.map(item => ({ urls: item })),
 });
 
@@ -52,46 +60,87 @@ const getUserMedia = (constraints: DisplayMediaStreamConstraints): Promise<Media
   return Promise.reject(new Error("浏览器不兼容：没有访问媒体方法，建议安装最新版 Chrome"));
 };
 
-const makeToast = (
-  title?: string,
-  content?: string,
-  variant?: "default" | "primary" | "secondary" | "danger" | "warning" | "success" | "info"
-) => {
-  const _this: any = getCurrentInstance()?.root.type.$app;
+export default Vue.extend({
+  components: {} as Record<string, Component>,
 
-  _this?.$bvToast.toast(content, {
-    title: title ?? "提示",
-    variant: variant || "default",
-    solid: true,
-  });
-};
+  data() {
+    return {
+      userMediaAvailable: undefined,
+    } as State;
+  },
 
-onMounted(() => {
-  const videoControl = videoControlRef.value;
+  computed: {
+    ...mapState("chatroom", ["initReady", "currentUserRole", "currentStep"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+  },
 
-  if (videoControl) {
-    getUserMedia({
-      video: {
-        width: {
-          min: userMediaVideoTrackConstraints["360p"].width,
-          max: userMediaVideoTrackConstraints["1080p"].width,
-        },
-        height: {
-          min: userMediaVideoTrackConstraints["360p"].height,
-          max: userMediaVideoTrackConstraints["1080p"].height,
-        },
-      },
-      audio: true,
-    })
-      .then(stream => {
-        videoControl.srcObject = stream;
-      })
-      .catch(err => {
-        makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
-        // eslint-disable-next-line no-console
-        console.error("访问用户媒体设备失败:", err.message);
-      });
-  }
+  watch: {
+    currentStep(currentValue) {
+      switch (currentValue) {
+        case ChatroomInitStepEnum.GET_USER_MEDIA: {
+          console.log(this.$refs.videoControlRef);
+
+          const videoControl: HTMLVideoElement | null = this.$refs
+            .videoControlRef as HTMLVideoElement;
+          if (videoControl) {
+            getUserMedia({
+              video: {
+                width: {
+                  min: userMediaVideoTrackConstraints["360p"].width,
+                  max: userMediaVideoTrackConstraints["1080p"].width,
+                },
+                height: {
+                  min: userMediaVideoTrackConstraints["360p"].height,
+                  max: userMediaVideoTrackConstraints["1080p"].height,
+                },
+              },
+              audio: true,
+            })
+              .then(stream => {
+                this.userMediaAvailable = true;
+                this.setCurrentStep(ChatroomInitStepEnum.CONFIRM_USER);
+                videoControl.srcObject = stream;
+              })
+              .catch(err => {
+                this.userMediaAvailable = false;
+                makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
+                // eslint-disable-next-line no-console
+                console.error("访问用户媒体设备失败:", err.message);
+              });
+          }
+          break;
+        }
+        case ChatroomInitStepEnum.CONFIRM_USER: {
+          const socketId = socketioService.socket.id;
+          const roomId = this.$route.params?.id;
+          const userId = this.currentUserRole?._id;
+          this.chatroomEnter({ socketId, roomId, userId });
+          break;
+        }
+        case ChatroomInitStepEnum.DONE: {
+          this.setInitReady(true);
+          break;
+        }
+        default:
+          break;
+      }
+    },
+  },
+
+  created() {},
+
+  mounted() {},
+
+  methods: {
+    ...mapMutations({
+      setInitReady: "chatroom/setInitReady",
+      setCurrentStep: "chatroom/setCurrentStep",
+    }),
+    ...mapActions({
+      chatroomEnter: "chatroom/chatroomEnter",
+    }),
+  },
 });
 </script>
 
@@ -99,7 +148,6 @@ onMounted(() => {
 .primary-content-container {
   flex: 1;
   position: relative;
-  width: 0;
   height: 100%;
 
   .video-chat-container {

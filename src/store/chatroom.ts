@@ -1,23 +1,46 @@
-import { Module, VuexModule, Mutation, Action } from "vuex-module-decorators";
+/* eslint-disable @typescript-eslint/ban-types */
+import { Module, VuexModule, Mutation, Action, MutationAction } from "vuex-module-decorators";
 import { $axios } from "~/assets/utils/store-api";
-import { IUserModel } from "~/api/modules/mongodb/models/user";
+import type { IUserModel } from "~/api/modules/mongodb/models/user";
+import type { IConnectionModel } from "~/api/modules/mongodb/models/connection";
+
+export enum ChatroomInitStepEnum {
+  "INIT" = 0,
+  "GET_USER_MEDIA" = 1,
+  "CONFIRM_USER" = 2,
+  "DONE" = 3,
+}
 
 @Module({
   name: "chatroom",
-  stateFactory: true,
   namespaced: true,
 })
-export default class Chatroom extends VuexModule {
-  public currentUserRole: Partial<IUserModel> | undefined;
+export default class ChatroomStore extends VuexModule {
+  public currentUserRole: Partial<IUserModel> | undefined = undefined;
+  public initReady: boolean = false;
+
+  public currentStep: number = ChatroomInitStepEnum.INIT;
 
   @Mutation
-  public setCurrentUserRole(value: Partial<IUserModel>) {
+  public setCurrentUserRole(value: Partial<IUserModel>): void {
     this.currentUserRole = value;
   }
 
-  @Action
-  public async enterChatroom() {
-    // const { data } = await $axios.get<IChatroomState[]>("/api/todos");
-    // this.set(data);
+  @Mutation
+  public setInitReady(value: boolean): void {
+    this.initReady = value;
+  }
+
+  @Mutation
+  public setCurrentStep(value: number): void {
+    this.currentStep = value;
+  }
+
+  @MutationAction({ mutate: ["currentStep"] })
+  public async chatroomEnter(value: Partial<IConnectionModel>) {
+    const res = await $axios.post("/chat/room/enter", value);
+    console.log(res);
+
+    return { currentStep: ChatroomInitStepEnum.DONE };
   }
 }

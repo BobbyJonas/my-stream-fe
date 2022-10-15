@@ -1,7 +1,9 @@
 import axios, { AxiosError } from "axios";
 import { getCurrentInstance } from "@nuxtjs/composition-api";
-import { Plugin } from "@nuxt/types";
+import type { Plugin } from "@nuxt/types";
+
 import { statusCodeMap } from "./dataUtils";
+import { makeToast } from "./common";
 
 const axiosPlugin: Plugin = context => {
   const { $axios, app } = context;
@@ -23,11 +25,11 @@ const axiosPlugin: Plugin = context => {
         default: {
           const err = response?.data || response || "";
           const content = typeof err === "object" ? JSON.stringify(err) : String(err);
-          (window.$nuxt as any)?.$bvToast?.toast(content, {
-            title: `请求错误 ${statusCode || ""}`,
-            variant: "danger",
-            solid: true,
-          });
+          makeToast(
+            `请求错误 ${statusCode || ""}`,
+            content || statusCodeMap[statusCode] || "",
+            "danger"
+          );
           return Promise.reject(error.response);
         }
       }
@@ -35,14 +37,10 @@ const axiosPlugin: Plugin = context => {
       // 1.请求已经成功发起，但没有收到响应 (此时可通过 error.request 处理)
       // 2.请求发出失败 (断网或超时)
       if (error.code === "ECONNABORTED") {
-        return Promise.reject(new Error("请求超时，请稍后重试"));
+        makeToast("请求错误", "请求超时，请稍后重试", "danger");
       }
       if (error.code === "ERR_BAD_RESPONSE") {
-        (window.$nuxt as any)?.$bvToast?.toast("网关错误，请联系管理员", {
-          title: "请求错误",
-          variant: "danger",
-          solid: true,
-        });
+        makeToast("请求错误", "网关错误，请联系管理员", "danger");
       }
       return Promise.reject(error);
     }

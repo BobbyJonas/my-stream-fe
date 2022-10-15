@@ -13,6 +13,7 @@ export enum IUserSexEnum {
 }
 
 export interface IUserModel {
+  _id: string;
   name: string;
   password: string;
   code: string; // 唯一的 code

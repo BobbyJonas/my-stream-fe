@@ -67,20 +67,21 @@
           <li
             v-for="(item, index) in userRoleList"
             :key="index"
+            role="button"
+            :tabindex="0"
             :class="['card-item', { 'card-item--active': selectRoleIndex === index }]"
-            @click="updateSelectIndex(index)"
+            @keypress="$event.key === 'Enter' && onRoleCardClick(index)"
+            @click="onRoleCardClick(index)"
           >
             <div class="card-avatar"></div>
             <p class="card-name">{{ item.nickname }}</p>
           </li>
           <li
             class="card-item card-add"
-            @click="
-              () => {
-                onResetUserInfo();
-                currentAddUser = true;
-              }
-            "
+            role="button"
+            :tabindex="0"
+            @keypress="$event.key === 'Enter' && onAddCardClick()"
+            @click="onAddCardClick()"
           >
             <b-icon class="icon-plus" icon="plus-circle" />
           </li>
@@ -95,7 +96,6 @@
         >
           <b-icon class="btn-icon" icon="chat-left" />
           <span>创建聊天室</span>
-          {{ chatroomStore.currentUserRole }}
         </b-button>
       </div>
     </b-overlay>
@@ -104,8 +104,12 @@
 
 <script lang="ts">
 import Vue, { Component } from "vue";
-import { IUserModel } from "~/api/modules/mongodb/models/user";
-import { ChatroomStore } from "~/store";
+import { mapMutations, mapState } from "vuex";
+import { v4 as uuidv4 } from "uuid";
+
+import type { IUserModel } from "~/api/modules/mongodb/models/user";
+import ChatroomStore from "~/store/chatroom";
+import type { Properties } from "~/assets/utils/common";
 
 export interface IChatroomNewState {
   ifUserRoleExists: boolean;
@@ -115,6 +119,8 @@ export interface IChatroomNewState {
   currentAddUser: boolean;
   selectRoleIndex: number;
 }
+
+type State = IChatroomNewState;
 
 export default Vue.extend({
   components: {} as Record<string, Component>,
@@ -132,27 +138,31 @@ export default Vue.extend({
       loading: false,
       currentAddUser: false,
       selectRoleIndex: -1,
-    } as IChatroomNewState;
+    } as State;
   },
 
   computed: {
-    chatroomStore: () => ChatroomStore || {},
+    ...mapState("chatroom", ["initReady", "currentUserRole"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
   },
 
   beforeMount() {
-    const storageUserRole = window.localStorage["user-role"];
+    const storageUserRole: string = window.localStorage["user-role"];
     if (storageUserRole) this.userRoleList = JSON.parse(storageUserRole as string) || [];
 
-    const storageCurrentRole = window.localStorage["current-role"];
-    console.log(storageCurrentRole);
-
-    if (storageCurrentRole)
-      ChatroomStore.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
-
+    const storageCurrentRole: string = window.localStorage["current-role"];
+    if (storageCurrentRole) {
+      const currentRoleObj: IUserModel = JSON.parse(storageCurrentRole);
+      this.setCurrentUserRole(currentRoleObj);
+      this.selectRoleIndex = this.userRoleList?.findIndex(item => item._id === currentRoleObj._id);
+    }
     this.ifUserRoleExists = !!storageUserRole;
     if (!this.ifUserRoleExists) {
       this.currentAddUser = true;
-    } else {
+      return;
+    }
+    if (!storageCurrentRole && this.selectRoleIndex < 0) {
       this.selectRoleIndex = 0;
     }
   },
@@ -160,6 +170,19 @@ export default Vue.extend({
   beforeDestroy() {},
 
   methods: {
+    ...mapMutations({
+      setCurrentUserRole: "chatroom/setCurrentUserRole",
+    }),
+
+    onRoleCardClick(index: number) {
+      this.selectRoleIndex = index;
+    },
+
+    onAddCardClick() {
+      this.onResetUserInfo();
+      this.currentAddUser = true;
+    },
+
     onSubmitUserInfo(event: FormDataEvent) {
       if (this.loading) return;
       this.loading = true;
@@ -194,18 +217,15 @@ export default Vue.extend({
       this.userInfoForm.nickname = "";
     },
 
-    updateSelectIndex(index: number) {
-      this.selectRoleIndex = index;
-    },
-
     onCreateChatroom() {
       if (this.userRoleList[this.selectRoleIndex]) {
         this.loading = true;
         window.localStorage["current-role"] = JSON.stringify(
           this.userRoleList[this.selectRoleIndex]
         );
-        // TODO: 生成聊天室 id
-        ChatroomStore.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+        const roomId = uuidv4();
+        this.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+        this.$router.push(`/chatroom/${roomId}`);
       }
     },
   },
@@ -320,7 +340,6 @@ export default Vue.extend({
         width: @card-width;
         padding: 14px 0;
         margin: 0 10px;
-        background-color: rgba(black, 0.02);
         border: 1px solid transparent;
         border-radius: 5px;
         vertical-align: top;

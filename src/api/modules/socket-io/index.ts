@@ -4,6 +4,7 @@ import http from "http";
 import https from "https";
 import { Server } from "socket.io";
 import chalk from "chalk";
+import consola from "consola";
 
 import type { Module } from "@nuxt/types";
 
@@ -61,8 +62,13 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
       });
 
       socket.on("disconnect", () => {
-        console.log(`Socket ID: ${socket.id} disconnect`);
-        removeConnectionItem({ socketId: socket.id });
+        removeConnectionItem({ socketId: socket.id })
+          .then(res => {
+            console.log(`Socket ID: ${socket.id} deleted`);
+          })
+          .catch(err => {
+            consola.error(err);
+          });
       });
     });
   });

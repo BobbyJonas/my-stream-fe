@@ -60,10 +60,9 @@ const sendContentValue = ref<string>("");
 const sendContentInputEnabled = ref<boolean>(false);
 
 const onConnectDb = async (): Promise<void> => {
-  const $axios: AxiosInstance = window.$nuxt.$axios;
-
-  const res = await $axios.get("/db/user");
-  console.log(res);
+  // const $axios: AxiosInstance = window.$nuxt.$axios;
+  // const res = await $axios.get("/db/user");
+  // console.log(res);
 };
 
 const onSendTextClick = (): void => {
