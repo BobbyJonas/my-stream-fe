@@ -7,7 +7,10 @@
     :style="{ width: '100%' }"
   >
     <div class="primary-content-container">
-      <video ref="videoControlRef" class="video-chat-container" muted autoplay></video>
+      <div class="video-chat-container">
+        <video ref="localVideoControlRef" class="video-container local-video" muted autoplay />
+        <video ref="remoteVideoControlRef" class="video-container" autoplay />
+      </div>
     </div>
   </b-overlay>
 </template>
@@ -15,37 +18,31 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
-
 import type { AxiosInstance } from "axios";
-import { iceServerPublicList, userMediaVideoTrackConstraints } from "./utils";
+import { PropType, Ref, ref } from "@nuxtjs/composition-api";
 
 import socketioService from "~/assets/services/socket-io-client";
 
+import type { IUserModel } from "~/api/modules/mongodb/models/user";
+import type { ISocketRTCConnectionMessage } from "~/api/modules/socket-io/handler";
+import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
-import { IUserModel } from "~/api/modules/mongodb/models/user";
-import ChatroomStore, { ChatroomInitStepEnum } from "~/store/chatroom";
+
+export enum RTC_CONNECTION_STATUS {
+  "PREPARED" = 0,
+  "WAITING_FOR_OTHER_ANSWER" = 11,
+  "WAITING_FOR_CURRENT_ANSWER" = 12,
+  "ESTABLISHED" = 2,
+}
 
 export interface IMainContentState {
-  userMediaAvailable: boolean | undefined;
+  userMediaAvailable: boolean;
+  connectStatus: RTC_CONNECTION_STATUS;
+  localStreamRef: Ref<MediaStream | null>;
 }
 
 type State = IMainContentState;
-
-const PeerConnection =
-  window.RTCPeerConnection ||
-  (window as any).mozRTCPeerConnection ||
-  (window as any).webkitRTCPeerConnection ||
-  (window as any).msRTCPeerConnection;
-
-const pcInstance = new PeerConnection({
-  iceServers: iceServerPublicList.map(item => ({ urls: item })),
-});
-
-const sessionDescription: RTCSessionDescription =
-  (window as any).RTCSessionDescription ||
-  (window as any).mozRTCSessionDescription ||
-  (window as any).webkitRTCSessionDescription ||
-  (window as any).msRTCSessionDescription;
 
 const getUserMedia = (constraints: DisplayMediaStreamConstraints): Promise<MediaStream> => {
   if ((window as any).navigator.mediaDevices.getUserMedia) {
@@ -63,27 +60,38 @@ const getUserMedia = (constraints: DisplayMediaStreamConstraints): Promise<Media
 export default Vue.extend({
   components: {} as Record<string, Component>,
 
+  props: {
+    pcInstance: {
+      required: true,
+      type: Object as PropType<Ref<RTCPeerConnection | null>>,
+    },
+  },
+
   data() {
     return {
-      userMediaAvailable: undefined,
+      userMediaAvailable: false,
+      connectStatus: RTC_CONNECTION_STATUS.PREPARED,
     } as State;
   },
 
   computed: {
-    ...mapState("chatroom", ["initReady", "currentUserRole", "currentStep"] as Array<
-      Properties<typeof ChatroomStore>
-    >),
+    ...mapState("chatroom", [
+      "currentUserRole",
+      "currentRoomId",
+      "currentStep",
+      "currentStepProcess",
+      "initReady",
+    ] as Array<Properties<typeof ChatroomStore>>),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case ChatroomInitStepEnum.GET_USER_MEDIA: {
-          console.log(this.$refs.videoControlRef);
+        case CHATROOM_INIT_STATUS.GET_USER_MEDIA: {
+          this.addCurrentStepProcess();
 
-          const videoControl: HTMLVideoElement | null = this.$refs
-            .videoControlRef as HTMLVideoElement;
-          if (videoControl) {
+          const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoControlRef as any;
+          if (localVideoControl) {
             getUserMedia({
               video: {
                 width: {
@@ -99,8 +107,13 @@ export default Vue.extend({
             })
               .then(stream => {
                 this.userMediaAvailable = true;
-                this.setCurrentStep(ChatroomInitStepEnum.CONFIRM_USER);
-                videoControl.srcObject = stream;
+                this.localStreamRef = ref(stream);
+                localVideoControl.srcObject = stream;
+
+                this.removeCurrentStepProcess();
+                if (this.currentStepProcess === 0) {
+                  this.setCurrentStep(CHATROOM_INIT_STATUS.CONFIRM_USER);
+                }
               })
               .catch(err => {
                 this.userMediaAvailable = false;
@@ -111,15 +124,31 @@ export default Vue.extend({
           }
           break;
         }
-        case ChatroomInitStepEnum.CONFIRM_USER: {
-          const socketId = socketioService.socket.id;
-          const roomId = this.$route.params?.id;
-          const userId = this.currentUserRole?._id;
-          this.chatroomEnter({ socketId, roomId, userId });
+        case CHATROOM_INIT_STATUS.RTC_CONNECTION: {
+          this.addCurrentStepProcess();
+
+          const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+          const localStream = this.localStreamRef.value;
+          localStream?.getTracks().forEach(track => {
+            pcInstance.addTrack(track, localStream);
+          });
+          pcInstance.ontrack = this.onPeerConnectionRemoteTrack;
+
+          socketioService.socket?.on("__offer", this.onSocketOffer);
+          socketioService.socket?.on("__answer", this.onSocketAnswer);
+          socketioService.socket?.on("__candidate", this.onSocketCandidate);
+
+          this.removeCurrentStepProcess();
+          setTimeout(() => {
+            if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
+          }, 0);
           break;
         }
-        case ChatroomInitStepEnum.DONE: {
-          this.setInitReady(true);
+        case CHATROOM_INIT_STATUS.DONE: {
+          if (this.currentStepProcess === 0) {
+            this.setInitReady(true);
+            this.createOffer();
+          }
           break;
         }
         default:
@@ -128,7 +157,9 @@ export default Vue.extend({
     },
   },
 
-  created() {},
+  created() {
+    this.localStreamRef = ref<MediaStream | null>(null);
+  },
 
   mounted() {},
 
@@ -136,10 +167,76 @@ export default Vue.extend({
     ...mapMutations({
       setInitReady: "chatroom/setInitReady",
       setCurrentStep: "chatroom/setCurrentStep",
+      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
+      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
     }),
     ...mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
+
+    onPeerConnectionRemoteTrack(e: RTCTrackEvent) {
+      const remoteVideoControl: HTMLVideoElement | null = this.$refs.remoteVideoControlRef as any;
+      if (remoteVideoControl) {
+        remoteVideoControl.srcObject = e.streams[0];
+      }
+    },
+
+    onSocketOffer(args: ISocketRTCConnectionMessage) {
+      console.log("onOffer");
+
+      const { data, from } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
+
+      // 创建应答
+      pcInstance
+        .createAnswer?.({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true,
+        })
+        .then(sdp => {
+          pcInstance.setLocalDescription(sdp);
+          socketioService.socket.emit("__answer", {
+            to: from,
+            data: JSON.stringify(sdp),
+            from: socketioService.socket.id,
+            roomId: this.currentRoomId,
+          } as { to: string } & ISocketRTCConnectionMessage);
+        });
+    },
+
+    onSocketAnswer(args: ISocketRTCConnectionMessage) {
+      console.log("onAnswer");
+
+      const { data } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
+    },
+
+    onSocketCandidate(args: ISocketRTCConnectionMessage) {
+      console.log("onCandidate");
+
+      const { data } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.addIceCandidate(new RTCIceCandidate(JSON.parse(data)));
+    },
+
+    createOffer() {
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance
+        .createOffer?.({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true,
+        })
+        .then(sdp => {
+          pcInstance.setLocalDescription(sdp);
+          socketioService.socket.emit("__offer", {
+            from: socketioService.socket.id,
+            roomId: this.currentRoomId,
+            data: JSON.stringify(sdp),
+          });
+        });
+    },
   },
 });
 </script>
@@ -151,8 +248,19 @@ export default Vue.extend({
   height: 100%;
 
   .video-chat-container {
+    display: flex;
     height: 100%;
     width: 100%;
+
+    .video-container {
+      flex: 1;
+      width: 0;
+      height: 100%;
+    }
+
+    .local-video {
+      transform: rotateY(180deg);
+    }
   }
 }
 </style>

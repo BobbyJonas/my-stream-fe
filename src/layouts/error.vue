@@ -18,7 +18,7 @@
 
 <script lang="ts">
 import Vue from "vue";
-import { PropType } from "@nuxtjs/composition-api";
+import type { PropType } from "@nuxtjs/composition-api";
 import { statusCodeMap } from "~/assets/utils/dataUtils";
 
 export default Vue.extend({

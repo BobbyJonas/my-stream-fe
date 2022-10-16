@@ -9,6 +9,7 @@ import consola from "consola";
 import type { Module } from "@nuxt/types";
 
 import { createConnectionItem, removeConnectionItem } from "../mongodb/models/connection";
+import { createSocketHandler } from "./handler";
 
 interface ISocketModuleOptions {}
 
@@ -55,11 +56,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
       console.log(`Socket ID: ${socket.id} connected`);
       createConnectionItem({ socketId: socket.id });
 
-      socket.on("chat-message", args => {
-        console.log("hahah", args);
-
-        io.emit("new-message", args);
-      });
+      createSocketHandler(socket, io);
 
       socket.on("disconnect", () => {
         removeConnectionItem({ socketId: socket.id })

@@ -5,8 +5,9 @@ class SocketioService {
   constructor() {}
 
   setupSocketConnection() {
+    const { protocol, hostname } = window.location;
     const port = process.env.PORT_SOCKET;
-    this.socket = io(`https://localhost:${port}`);
+    this.socket = io(`${protocol}//${hostname}:${port}`);
   }
 
   disconnect() {
