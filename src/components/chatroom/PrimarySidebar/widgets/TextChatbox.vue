@@ -1,40 +1,51 @@
 <template>
-  <div class="sidebar-widget-container">
-    <div class="chat-record-wrapper">
-      <ul>
-        <li v-for="(item, index) in chatList" :key="index">
-          {{ item.content || "" }}
-        </li>
-      </ul>
+  <b-overlay
+    :show="true"
+    variant="light"
+    :opacity="0.65"
+    blur=""
+    spinner-variant="primary"
+    spinner-type="grow"
+    spinner-small
+    :style="{ width: '100%' }"
+  >
+    <div class="sidebar-widget-container">
+      <div class="chat-record-wrapper">
+        <ul>
+          <li v-for="(item, index) in chatList" :key="index">
+            {{ item.msgContent || "" }}
+          </li>
+        </ul>
+      </div>
+      <b-button @click="onConnectDb()">测试 db</b-button>
+      <div class="chat-send-wrapper">
+        <b-form-textarea
+          v-model="sendContentValue"
+          :class="['send-content-input', { 'send-content-input--active': sendContentInputEnabled }]"
+          size="sm"
+          placeholder="请输入聊天内容"
+          rows="3"
+          max-rows="8"
+          @focus="activateContentInput"
+          @blur="deactivateContentInput"
+        />
+        <b-button
+          :disabled="!Boolean(sendContentValue)"
+          variant="primary"
+          class="send-button"
+          size="sm"
+          @click="onSendTextClick()"
+        >
+          发送
+        </b-button>
+      </div>
     </div>
-    <b-button @click="onConnectDb()">测试 db</b-button>
-    <div class="chat-send-wrapper">
-      <b-form-textarea
-        v-model="sendContentValue"
-        :class="['send-content-input', { 'send-content-input--active': sendContentInputEnabled }]"
-        size="sm"
-        placeholder="请输入聊天内容"
-        rows="3"
-        max-rows="8"
-        @focus="activateContentInput"
-        @blur="deactivateContentInput"
-      />
-      <b-button
-        :disabled="!Boolean(sendContentValue)"
-        variant="primary"
-        class="send-button"
-        size="sm"
-        @click="onSendTextClick()"
-      >
-        发送
-      </b-button>
-    </div>
-  </div>
+  </b-overlay>
 </template>
 
 <script lang="ts" setup>
 import { Component, Prop, Vue } from "vue-property-decorator";
-
+import { mapMutations, mapState } from "vuex";
 import {
   onBeforeMount,
   onMounted,
@@ -43,18 +54,28 @@ import {
   reactive,
   useRouter,
   getCurrentInstance,
+  watch,
+  useStore,
 } from "@nuxtjs/composition-api";
-import { AxiosInstance } from "axios";
-import socketioService from "~/assets/services/socket-io-client";
+import type { AxiosInstance } from "axios";
 
-interface IMessageItem {
-  author?: string;
-  content?: string;
-  dateSent?: string;
-}
+import socketioService from "~/assets/services/socket-io-client";
+import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import type { IMessageModel } from "~/api/modules/mongodb/models/message";
+
+import type { Properties } from "~/assets/utils/common";
+
 const router = useRouter();
 
-const chatList = reactive<Array<IMessageItem>>([]);
+const { currentStep } = mapState("chatroom", ["currentStep"] as Array<
+  Properties<typeof ChatroomStore>
+>);
+
+const { setCurrentStep } = mapMutations({
+  setCurrentStep: "chatroom/setCurrentStep",
+});
+
+const chatList = reactive<Array<IMessageModel>>([]);
 
 const sendContentValue = ref<string>("");
 const sendContentInputEnabled = ref<boolean>(false);
@@ -66,8 +87,6 @@ const onConnectDb = async (): Promise<void> => {
 };
 
 const onSendTextClick = (): void => {
-  console.log(sendContentValue.value);
-
   if (sendContentValue.value?.length > 0) {
     const route = router.currentRoute;
     socketioService.socket.emit("chat-message", {
@@ -86,14 +105,18 @@ const deactivateContentInput = (): void => {
   sendContentInputEnabled.value = false;
 };
 
-socketioService.socket?.on("new-message", (args: IMessageItem) => {
+socketioService.socket?.on("new-message", (args: IMessageModel) => {
   chatList.push(args);
-  console.log(args.content);
 });
 
 onMounted(() => {});
 
 onUnmounted(() => {});
+
+watch(currentStep, (currentValue: number) => {
+  if (currentValue === CHATROOM_INIT_STATUS.DONE) {
+  }
+});
 </script>
 
 <style lang="less" scoped>

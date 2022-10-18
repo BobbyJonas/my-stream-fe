@@ -8,7 +8,11 @@ import consola from "consola";
 
 import type { Module } from "@nuxt/types";
 
-import { createConnectionItem, removeConnectionItem } from "../mongodb/models/connection";
+import {
+  createConnectionItem as addDbConnectionRecord,
+  removeConnectionItem as removeDbConnectionRecord,
+} from "../mongodb/models/connection";
+
 import { createSocketHandler } from "./handler";
 
 interface ISocketModuleOptions {}
@@ -53,14 +57,16 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     // Add socket.io events
     io.on("connection", socket => {
-      console.log(`Socket ID: ${socket.id} connected`);
-      createConnectionItem({ socketId: socket.id });
+      console.log(`${chalk.bgBlue(" socket-io ")} ${socket.id} connected`);
 
+      addDbConnectionRecord({ socketId: socket.id });
       createSocketHandler(socket, io);
 
       socket.on("disconnect", () => {
-        removeConnectionItem({ socketId: socket.id })
+        removeDbConnectionRecord({ socketId: socket.id })
           .then(res => {
+            // TODO: 广播退出消息
+            io.emit("__leave", { from: socket.id });
             console.log(`Socket ID: ${socket.id} deleted`);
           })
           .catch(err => {

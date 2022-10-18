@@ -8,8 +8,9 @@
     <b-overlay
       :show="loading"
       variant="light"
-      :opacity="0.65"
+      blur=""
       rounded="sm"
+      :opacity="0.65"
       :style="{ width: '100%' }"
     >
       <div v-if="currentAddUser" class="new-role-container">

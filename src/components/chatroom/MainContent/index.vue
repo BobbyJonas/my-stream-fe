@@ -1,11 +1,5 @@
 <template>
-  <b-overlay
-    :show="!initReady"
-    variant="light"
-    :opacity="0.65"
-    rounded="sm"
-    :style="{ width: '100%' }"
-  >
+  <b-overlay :show="!initReady" variant="light" :opacity="0.65" :style="{ width: '100%' }">
     <div class="primary-content-container">
       <div class="video-chat-container">
         <video ref="localVideoControlRef" class="video-container local-video" muted autoplay />
@@ -129,10 +123,20 @@ export default Vue.extend({
 
           const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
           const localStream = this.localStreamRef.value;
-          localStream?.getTracks().forEach(track => {
-            pcInstance.addTrack(track, localStream);
-          });
-          pcInstance.ontrack = this.onPeerConnectionRemoteTrack;
+
+          if (pcInstance.addTrack) {
+            localStream?.getTracks().forEach(track => {
+              pcInstance.addTrack(track, localStream);
+            });
+          } else {
+            (pcInstance as any).addStream(localStream);
+          }
+
+          if (pcInstance.ontrack !== undefined) {
+            pcInstance.ontrack = this.onPeerConnectionRemoteTrack;
+          } else {
+            (pcInstance as any).onaddstream = this.DEPRECATED_onPeerConnectionRemoteStream;
+          }
 
           socketioService.socket?.on("__offer", this.onSocketOffer);
           socketioService.socket?.on("__answer", this.onSocketAnswer);
@@ -161,7 +165,9 @@ export default Vue.extend({
     this.localStreamRef = ref<MediaStream | null>(null);
   },
 
-  mounted() {},
+  mounted() {
+    socketioService.socket?.on("__leave", this.onRemoteDisconnect);
+  },
 
   methods: {
     ...mapMutations({
@@ -174,16 +180,20 @@ export default Vue.extend({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
 
+    DEPRECATED_onPeerConnectionRemoteStream(e: any) {
+      const remoteVideoControl: HTMLVideoElement | null = this.$refs.remoteVideoControlRef as any;
+      if (!remoteVideoControl) return;
+      remoteVideoControl.srcObject = e?.streams;
+    },
+
     onPeerConnectionRemoteTrack(e: RTCTrackEvent) {
       const remoteVideoControl: HTMLVideoElement | null = this.$refs.remoteVideoControlRef as any;
-      if (remoteVideoControl) {
-        remoteVideoControl.srcObject = e.streams[0];
-      }
+      if (!remoteVideoControl) return;
+
+      remoteVideoControl.srcObject = e.streams[0];
     },
 
     onSocketOffer(args: ISocketRTCConnectionMessage) {
-      console.log("onOffer");
-
       const { data, from } = args;
       const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
       pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
@@ -206,16 +216,12 @@ export default Vue.extend({
     },
 
     onSocketAnswer(args: ISocketRTCConnectionMessage) {
-      console.log("onAnswer");
-
       const { data } = args;
       const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
       pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
     },
 
     onSocketCandidate(args: ISocketRTCConnectionMessage) {
-      console.log("onCandidate");
-
       const { data } = args;
       const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
       pcInstance.addIceCandidate(new RTCIceCandidate(JSON.parse(data)));
@@ -236,6 +242,10 @@ export default Vue.extend({
             data: JSON.stringify(sdp),
           });
         });
+    },
+
+    onRemoteDisconnect() {
+      console.log("remote-disconnect");
     },
   },
 });

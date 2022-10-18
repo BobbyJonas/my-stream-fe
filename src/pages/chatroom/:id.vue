@@ -1,7 +1,7 @@
 <template>
   <div class="chatroom-content">
     <MainContent :pc-instance="pcInstance"></MainContent>
-    <PrimarySidebar></PrimarySidebar>
+    <PrimarySidebar :pc-instance="pcInstance"></PrimarySidebar>
   </div>
 </template>
 
@@ -10,6 +10,7 @@ import Vue, { Component } from "vue";
 import { mapActions, mapMutations, mapState } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
+import { Socket } from "socket.io-client";
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
@@ -65,19 +66,23 @@ export default Vue.extend({
     currentStep(currentValue) {
       switch (currentValue) {
         case CHATROOM_INIT_STATUS.INIT_SOCKET: {
-          socketioService.setupSocketConnection();
+          if (!socketioService.socket?.connected) {
+            socketioService.setupSocketConnection();
 
-          socketioService.socket.on("connect", () => {
-            if (this.currentUserRole) {
-              setTimeout(() => {
-                this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
-              }, 0);
-            } else {
-              makeToast("加载错误", "当前用户信息为空，请选择用户信息后再进入", "danger");
-            }
-          });
-
-          this.setCurrentRoomId(this.$route.params?.id);
+            (socketioService.socket as Socket).on("connect", () => {
+              if (this.currentUserRole) {
+                setTimeout(() => {
+                  this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
+                }, 0);
+              } else {
+                makeToast("加载错误", "当前用户信息为空，请选择用户信息后再进入", "danger");
+              }
+            });
+          } else {
+            setTimeout(() => {
+              this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
+            }, 0);
+          }
           break;
         }
         case CHATROOM_INIT_STATUS.CONFIRM_USER: {
@@ -138,17 +143,23 @@ export default Vue.extend({
   },
 
   beforeMount() {
+    this.setCurrentRoomId(this.$route.params?.id);
+
     const storageCurrentRole: string = window.localStorage["current-role"];
     if (storageCurrentRole) {
       const currentRoleObj: IUserModel = JSON.parse(storageCurrentRole);
       this.setCurrentUserRole(currentRoleObj);
     }
-    this.setCurrentStep(CHATROOM_INIT_STATUS.INIT_SOCKET);
+
+    setTimeout(() => {
+      this.setCurrentStep(CHATROOM_INIT_STATUS.INIT_SOCKET);
+    }, 0);
   },
 
   beforeDestroy() {
     socketioService.disconnect();
-    this.setCurrentRoomId = undefined;
+    this.setCurrentRoomId(undefined);
+    this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
   },
 
   methods: {

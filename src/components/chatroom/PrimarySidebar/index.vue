@@ -20,5 +20,6 @@ onMounted(() => {});
   @apply h-full;
 
   width: 320px;
+  display: flex;
 }
 </style>
