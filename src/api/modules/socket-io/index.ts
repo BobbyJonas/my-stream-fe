@@ -57,7 +57,7 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     // Add socket.io events
     io.on("connection", socket => {
-      console.log(`${chalk.bgBlue(" socket-io ")} ${socket.id} connected`);
+      console.log(`${chalk.bgBlue(" Socket.io ")} ${socket.id} connected`);
 
       addDbConnectionRecord({ socketId: socket.id });
       createSocketHandler(socket, io);

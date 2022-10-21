@@ -10,6 +10,8 @@ import Vue, { Component } from "vue";
 import { mapActions, mapMutations, mapState } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
+import adapter from "webrtc-adapter";
+
 import { Socket } from "socket.io-client";
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
@@ -28,18 +30,6 @@ export interface IChatroomPageState {
 }
 
 type State = IChatroomPageState;
-
-const PeerConnection =
-  window.RTCPeerConnection ||
-  (window as any).mozRTCPeerConnection ||
-  (window as any).webkitRTCPeerConnection ||
-  (window as any).msRTCPeerConnection;
-
-const sessionDescription: RTCSessionDescription =
-  (window as any).RTCSessionDescription ||
-  (window as any).mozRTCSessionDescription ||
-  (window as any).webkitRTCSessionDescription ||
-  (window as any).msRTCSessionDescription;
 
 export default Vue.extend({
   components: {
@@ -112,6 +102,7 @@ export default Vue.extend({
 
           if (!this.pcInstance?.value) break;
           const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+
           pcInstance.onicecandidate = e => {
             if (e.candidate) {
               socketioService.socket.emit("__candidate", {
@@ -121,11 +112,18 @@ export default Vue.extend({
               } as ISocketRTCConnectionMessage);
             }
           };
+          socketioService.socket?.on("__offer", this.onSocketOffer);
+          socketioService.socket?.on("__answer", this.onSocketAnswer);
+          socketioService.socket?.on("__candidate", this.onSocketCandidate);
 
           this.removeCurrentStepProcess();
           setTimeout(() => {
             if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
           }, 0);
+          break;
+        }
+        case CHATROOM_INIT_STATUS.DONE: {
+          this.createOffer();
           break;
         }
         default:
@@ -134,15 +132,15 @@ export default Vue.extend({
     },
   },
 
-  created() {
+  created() {},
+
+  beforeMount() {
     this.pcInstance = ref(
-      new PeerConnection({
+      new window.RTCPeerConnection({
         iceServers: iceServerPublicList.map(item => ({ urls: item })),
       })
     );
-  },
-
-  beforeMount() {
+    // console.log(adapter.browserDetails.browser);
     this.setCurrentRoomId(this.$route.params?.id);
 
     const storageCurrentRole: string = window.localStorage["current-role"];
@@ -158,6 +156,7 @@ export default Vue.extend({
 
   beforeDestroy() {
     socketioService.disconnect();
+    this.pcInstance.value?.close();
     this.setCurrentRoomId(undefined);
     this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
   },
@@ -173,6 +172,57 @@ export default Vue.extend({
     ...mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
+
+    onSocketOffer(args: ISocketRTCConnectionMessage) {
+      const { data, from } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
+
+      // 创建应答
+      pcInstance
+        .createAnswer?.({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true,
+        })
+        .then(sdp => {
+          pcInstance.setLocalDescription(sdp);
+          socketioService.socket.emit("__answer", {
+            to: from,
+            data: JSON.stringify(sdp),
+            from: socketioService.socket.id,
+            roomId: this.currentRoomId,
+          } as { to: string } & ISocketRTCConnectionMessage);
+        });
+    },
+
+    onSocketAnswer(args: ISocketRTCConnectionMessage) {
+      const { data } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.setRemoteDescription?.(new RTCSessionDescription(JSON.parse(data)));
+    },
+
+    onSocketCandidate(args: ISocketRTCConnectionMessage) {
+      const { data } = args;
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance.addIceCandidate(new RTCIceCandidate(JSON.parse(data)));
+    },
+
+    createOffer() {
+      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
+      pcInstance
+        .createOffer?.({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true,
+        })
+        .then(sdp => {
+          pcInstance.setLocalDescription(sdp);
+          socketioService.socket.emit("__offer", {
+            from: socketioService.socket.id,
+            roomId: this.currentRoomId,
+            data: JSON.stringify(sdp),
+          });
+        });
+    },
   },
 });
 </script>
