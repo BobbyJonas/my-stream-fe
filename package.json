@@ -5,8 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "nuxt dev",
+    "dev:https": "cross-env SSL=true nuxt dev",
     "build": "vue-tsc --noEmit && nuxt build",
     "start": "nuxt start",
+    "start:https": "cross-env SSL=true nuxt start",
     "generate": "nuxt generate",
     "lint:js": "eslint --ext \".ts,.js,.vue\" --ignore-path .gitignore .",
     "lintfix:js": "eslint --ext \".ts,.js,.vue\" --ignore-path .gitignore . --fix --no-ignore",
@@ -20,19 +22,30 @@
     "@nuxtjs/axios": "^5.12.5",
     "@nuxtjs/composition-api": "^0.32.0",
     "@nuxtjs/dotenv": "^1.4.1",
-    "axios": "^0.21.1",
+    "body-parser": "^1.20.0",
     "bootstrap-vue": "^2.22.0",
+    "consola": "^2.15.3",
     "core-js": "^3.19.3",
+    "cross-env": "^7.0.3",
     "express": "^4.17.1",
+    "express-rate-limit": "^6.4.0",
+    "express-session": "^1.17.3",
+    "moment": "^2.29.4",
+    "mongoose": "^6.4.1",
     "nuxt": "^2.15.8",
+    "platform-detect": "^3.0.1",
+    "qs": "^6.11.0",
     "socket.io": "^4.4.1",
     "socket.io-client": "^4.4.1",
     "typescript": "^4.6.4",
+    "uuid": "^8.3.2",
     "vue-class-component": "^7.2.6",
     "vue-property-decorator": "^9.1.2",
     "vue-smooth-dnd": "^0.8.1",
     "vuex-class": "^0.3.2",
-    "webpack": "^4.46.0"
+    "vuex-module-decorators": "^1.2.0",
+    "webpack": "^4.46.0",
+    "webrtc-adapter": "^8.2.0"
   },
   "devDependencies": {
     "@nuxt/postcss8": "^1.1.3",
@@ -76,14 +89,5 @@
   "lint-staged": {
     "*.{js,ts,vue}": "eslint --cache --fix",
     "*.{css,less,vue}": "stylelint --fix"
-  },
-  "fork-ts-checker": {
-    "issue": {
-      "exclude": [
-        {
-          "code": "TS1192"
-        }
-      ]
-    }
   }
 }

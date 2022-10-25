@@ -1,5 +1,11 @@
+import fs from "fs";
+import path from "path";
 import * as dotenv from "dotenv";
-dotenv.config();
+
+const env = process.env.NODE_ENV;
+dotenv.config({ path: `.env.${env}` });
+
+const sslEnabled = !!process.env.SSL;
 
 export default {
   ssr: false,
@@ -26,7 +32,7 @@ export default {
   css: ["@/assets/styles/normalize.css", "@/assets/styles/global.less"],
 
   // Plugins to run before rendering page: https://go.nuxtjs.dev/config-plugins
-  plugins: [],
+  plugins: ["@/assets/utils/axios", "@/assets/utils/axios-accessor"],
 
   // Auto import components: https://go.nuxtjs.dev/config-components
   components: true,
@@ -35,18 +41,19 @@ export default {
   buildModules: [
     // https://go.nuxtjs.dev/eslint
     // "@nuxtjs/eslint-module",
-    "@nuxtjs/stylelint-module",
+    // "@nuxtjs/stylelint-module",
     "@nuxtjs/tailwindcss",
     "@nuxt/postcss8",
     "@nuxtjs/composition-api/module",
     "@nuxt/typescript-build",
-    ["@nuxtjs/dotenv", { path: "./" }],
+    ["@nuxtjs/dotenv", { path: "./", filename: `.env.${env}` }],
   ],
 
   // Modules: https://go.nuxtjs.dev/config-modules
   modules: [
     "@nuxtjs/axios",
-    "./src/assets/modules/socket-io",
+    "./src/api/modules/socket-io/index",
+    "./src/api/modules/mongodb/index",
     "bootstrap-vue/nuxt",
   ],
 
@@ -58,6 +65,14 @@ export default {
   server: {
     host: process.env.HOST,
     port: process.env.PORT_APP,
+    ...(sslEnabled
+      ? {
+          https: {
+            key: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-key.pem")),
+            cert: fs.readFileSync(path.resolve(__dirname, "config/cert/localhost-cert.pem")),
+          },
+        }
+      : {}),
   },
 
   globalName: "app",
@@ -95,7 +110,38 @@ export default {
     },
   },
 
+  bootstrapVue: {
+    icons: true,
+  },
+
+  // https://axios.nuxtjs.org/options
+  axios: {
+    baseURL: "/api",
+    timeout: 20000,
+  },
+
+  typescript: {
+    // fork-ts-checker-webpack-plugin Configuration
+    // https://typescript.nuxtjs.org/guide/lint/#runtime-lint
+    // https://github.com/TypeStrong/fork-ts-checker-webpack-plugin#options
+    typeCheck: {
+      // typescript: {
+      //   extensions: {
+      //     vue: {
+      //       enabled: true,
+      //       compiler: "@vue/compiler-sfc",
+      //     },
+      //   },
+      // },
+
+      // ignore `no default export` warning when using setup syntax
+      issue: { exclude: [{ code: "TS1192" }] },
+    },
+  },
+
   capi: {
     disableMigrationWarning: true,
   },
+
+  telemetry: false,
 };

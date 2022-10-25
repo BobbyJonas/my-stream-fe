@@ -1,0 +1,181 @@
+// Mixins
+// 颜色相关
+@primary: #0d75fc;
+@color-primary: @primary;
+@color-success: #07d091;
+@color-warning: #ff8800;
+@color-error: #ff3333;
+@color-white: #fff;
+
+// border
+// border-radius
+@border-radius-small: 2px;
+@border-radius-base: 4px;
+// 用于实现两端半圆
+@border-radius-infinite: 1000px;
+// border-color
+@border-color-base: #ebecf0;
+@border-color-light: #eeeeee;
+
+// 内外间距
+@gap-xl: 32px;
+@gap-lg: 24px;
+@gap-md: 16px;
+@gap-sm: 12px;
+@gap-xs: 8px;
+@gap-xxs: 4px;
+
+// paddings
+@padding-xl: @gap-xl;
+@padding-lg: @gap-lg;
+@padding-md: @gap-md;
+@padding-sm: @gap-sm;
+@padding-xs: @gap-xs;
+@padding-xxs: @gap-xxs;
+
+// margins
+@margin-xl: @gap-xl;
+@margin-lg: @gap-lg;
+@margin-md: @gap-md;
+@margin-sm: @gap-sm;
+@margin-xs: @gap-xs;
+@margin-xxs: @gap-xxs;
+
+// text-color
+@text-color-primary: @color-primary;
+@text-color-success: @color-success;
+@text-color-warning: @color-warning;
+@text-color-error: @color-error;
+@text-color-active: @color-primary;
+@text-color-dark: #000;
+@text-color-base: #333;
+@text-color: @text-color-base;
+@text-color-light: #999;
+@text-color-lighter: #ccc;
+@text-color-disabled: @text-color-light;
+
+// background
+@bg-base: #fff;
+@bg-light-grey: #f3f3f3;
+
+// box-shadow
+@box-shadow-base: 0px 10px 10px 0px rgba(51, 51, 51, 0.06);
+
+// font-size
+// 以下换算基于 1rem = 12px
+@font-size-xs: 0.83rem; // ~10px
+@font-size-sm: 1rem; // 12px
+@font-size-md: 1.17rem; // ~14px
+@font-size-lg: 1.33rem; // ~16px
+@font-size-xl: 1.5rem; // 18px
+@font-size-base: @font-size-md;
+@font-size-h1: 2.67rem; // ~32px
+@font-size-h2: 2rem; // 24px
+@font-size-h3: 1.5rem; // 18px
+@font-size-h4: 1.33rem; // ~16px
+@font-size-h5: 1.08rem; // ~13px
+@font-size-h6: 1rem; // 12px
+
+/* Utilities */
+.text-overflow() {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
+.multiline-overflow(@line) {
+  /* stylelint-disable-next-line value-no-vendor-prefix */
+  display: -webkit-box;
+  -webkit-line-clamp: @line;
+
+  /*! autoprefixer: off */
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.clear() {
+  &::before,
+  &::after {
+    content: ' ';
+    display: table;
+    line-height: 0;
+  }
+
+  &::after {
+    clear: both;
+  }
+}
+
+/* Layout */
+.translateX(@x: 0) {
+  transform+_: translateX(@x);
+}
+
+.translateY(@y: 0) {
+  transform+_: translateY(@y);
+}
+
+.center-block() {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.v-center() {
+  position: absolute;
+  top: 50%;
+  .translateY(-50%);
+}
+
+.h-center() {
+  position: absolute;
+  left: 50%;
+  .translateX(-50%);
+}
+
+.position-center() {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.square(@len) {
+  width: @len;
+  height: @len;
+}
+
+.circular(@len) {
+  .square(@len);
+
+  border-radius: 50%;
+}
+
+.f-center-between() {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.f-center() {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// 滚动区域不显示滚动条
+.no-scrollbar() {
+  scrollbar-width: none;
+
+  /* firefox */
+  -ms-overflow-style: none;
+
+  /* IE 10+ */
+
+  &::-webkit-scrollbar {
+    display: none;
+
+    /* Chrome Safari */
+  }
+}

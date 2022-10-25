@@ -9,6 +9,7 @@
     "sourceMap": true,
     "strict": true,
     "noEmit": true,
+    "noImplicitAny": false,
     "preserveValueImports": true,
     "experimentalDecorators": true,
     "baseUrl": ".",
@@ -16,7 +17,7 @@
       "~/*": ["./src/*"],
       "@/*": ["./src/*"]
     },
-    "types": ["@types/node", "@nuxt/types"],
+    "types": ["@types/node", "@nuxt/types", "@nuxtjs/axios"],
     "typeRoots": ["node_modules/@types"],
     "jsx": "preserve",
     "forceConsistentCasingInFileNames": true,

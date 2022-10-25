@@ -1,35 +1,29 @@
 <template>
   <div>
     <h1>blog-test</h1>
-    <a href="#">12312321</a>
     {{ articleList }}
-    <div class="blog-content">
-      <div
-        v-for="(articleItem, articleIndex) in articleList"
-        :key="articleIndex"
-      >
-        <p>
-          {{ articleItem.title }}
-        </p>
-        <p>
-          {{ articleItem.desc }}
-        </p>
-      </div>
-    </div>
   </div>
 </template>
 
-<script>
-export default {
-  components: {},
+<script lang="ts">
+import Vue, { Component } from "vue";
 
-  async asyncData({ $axios }) {
+export interface IBlogPageState {
+  articleList: string;
+}
+
+export default Vue.extend({
+  components: {} as Record<string, Component>,
+
+  async asyncData(context) {
+    const $axios = context.$axios;
     $axios.defaults.timeout = 3000;
-    const res = await $axios.$get("/api/test");
+    const res = await $axios.$get("/api/test/demo");
     return { articleList: res };
   },
+
   data() {
-    return {};
+    return {} as IBlogPageState;
   },
-};
+});
 </script>

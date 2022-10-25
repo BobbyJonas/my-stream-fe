@@ -5,10 +5,10 @@
     "node": true
   },
   "extends": [
-    "@nuxtjs",
+    "@nuxtjs/eslint-config-typescript",
     "plugin:@typescript-eslint/recommended",
     "plugin:nuxt/recommended",
-    "plugin:vuejs-accessibility/recommended",
+    // "plugin:vuejs-accessibility/recommended",
     "plugin:prettier/recommended"
   ],
   "globals": {
@@ -21,10 +21,15 @@
   },
   "rules": {
     "prettier/prettier": 1,
+    "import/named": 0,
+    "no-empty": 1,
     "no-useless-constructor": 1,
+    "require-await": 0,
     "@typescript-eslint/explicit-module-boundary-types": 0,
     "@typescript-eslint/no-empty-function": 1,
     "@typescript-eslint/no-empty-interface": 0,
+    "@typescript-eslint/no-explicit-any": 0,
+    "@typescript-eslint/no-inferrable-types": 0,
     "@typescript-eslint/no-non-null-assertion": 1,
     "vue/no-unused-components": 1
   }
