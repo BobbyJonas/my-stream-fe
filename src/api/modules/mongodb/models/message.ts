@@ -31,7 +31,7 @@ const messageSchema = new Schema<IMessageModel>({
   userAvatar: String,
 });
 
-const MessageModel = db.models.Message || model("Message", messageSchema);
+const MessageModel = db.models?.Message || model("Message", messageSchema);
 
 export const createMessageItem = (data: Partial<IMessageModel>): Promise<IMessageModel> => {
   const insertObj = new MessageModel(data);

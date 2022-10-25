@@ -3,13 +3,24 @@
     <div class="primary-content-container">
       <div class="video-chat-container">
         <video
-          ref="localVideoControlRef"
+          ref="localVideoRef"
           class="video-container local-video"
           muted
           autoplay
+          controlsList="nodownload"
+          playsinline
+          disablePictureInPicture
+          @contextmenu="() => false"
+        />
+
+        <video
+          v-for="item in Object.keys(pcInstanceMap)"
+          :ref="`remoteVideoRef_${item}`"
+          :key="item"
+          class="video-container"
+          autoplay
           playsinline
         />
-        <video ref="remoteVideoControlRef" class="video-container" autoplay playsinline />
       </div>
     </div>
   </b-overlay>
@@ -24,22 +35,14 @@ import { PropType, Ref, ref } from "@nuxtjs/composition-api";
 import socketioService from "~/assets/services/socket-io-client";
 
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
-import type { ISocketRTCConnectionMessage } from "~/api/modules/socket-io/handler";
 import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
 import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
 
-export enum RTC_CONNECTION_STATUS {
-  "PREPARED" = 0,
-  "WAITING_FOR_OTHER_ANSWER" = 11,
-  "WAITING_FOR_CURRENT_ANSWER" = 12,
-  "ESTABLISHED" = 2,
-}
-
 export interface IMainContentState {
   userMediaAvailable: boolean;
-  connectStatus: RTC_CONNECTION_STATUS;
   localStreamRef: Ref<MediaStream | null>;
+  remoteStreamList: Record<string, MediaStream | null>;
 }
 
 type State = IMainContentState;
@@ -48,16 +51,16 @@ export default Vue.extend({
   components: {} as Record<string, Component>,
 
   props: {
-    pcInstance: {
+    pcInstanceMap: {
       required: true,
-      type: Object as PropType<Ref<RTCPeerConnection | null>>,
+      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
     },
   },
 
   data() {
     return {
       userMediaAvailable: false,
-      connectStatus: RTC_CONNECTION_STATUS.PREPARED,
+      remoteStreamList: {},
     } as State;
   },
 
@@ -77,7 +80,7 @@ export default Vue.extend({
         case CHATROOM_INIT_STATUS.GET_USER_MEDIA: {
           this.addCurrentStepProcess();
 
-          const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoControlRef as any;
+          const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
           if (localVideoControl) {
             window.navigator.mediaDevices
               .getUserMedia({
@@ -112,26 +115,10 @@ export default Vue.extend({
           }
           break;
         }
-        case CHATROOM_INIT_STATUS.RTC_CONNECTION: {
-          this.addCurrentStepProcess();
-
-          const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
-          const localStream = this.localStreamRef.value;
-
-          localStream?.getTracks().forEach(track => {
-            pcInstance.addTrack(track, localStream);
-          });
-          pcInstance.ontrack = this.onPeerConnectionRemoteTrack;
-
-          this.removeCurrentStepProcess();
-          setTimeout(() => {
-            if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
-          }, 0);
-          break;
-        }
         case CHATROOM_INIT_STATUS.DONE: {
           if (this.currentStepProcess === 0) {
             this.setInitReady(true);
+            socketioService.socket?.on("__leave", this.onRemoteDisconnect);
           }
           break;
         }
@@ -160,17 +147,36 @@ export default Vue.extend({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
 
-    onPeerConnectionRemoteTrack(e: RTCTrackEvent) {
-      console.log("track");
-
-      const remoteVideoControl: HTMLVideoElement | null = this.$refs.remoteVideoControlRef as any;
-      if (!remoteVideoControl) return;
-
-      remoteVideoControl.srcObject = e.streams[0];
+    onRemoteDisconnect({ from }: { from: string }): void {
+      this.pcInstanceMap[from]?.close();
+      this.$delete(this.pcInstanceMap, from);
+      this.$delete(this.remoteStreamList, from);
     },
 
-    onRemoteDisconnect() {
-      console.log("remote-disconnect");
+    addLocalStreamToPeer(pcInstance: RTCPeerConnection, receiveSocketId: string): void {
+      const localStream = this.localStreamRef.value;
+
+      if (this.localStreamRef.value) {
+        localStream?.getTracks().forEach(track => {
+          pcInstance.addTrack(track, localStream);
+        });
+      } else {
+        makeToast("错误", "本地视频访问失败", "danger");
+      }
+
+      pcInstance.ontrack = e => {
+        this.$set(this.remoteStreamList, receiveSocketId, e.streams[0]);
+        this.$nextTick(() => {
+          let remoteVideoContainer = this.$refs[
+            `remoteVideoRef_${receiveSocketId}`
+          ] as HTMLVideoElement;
+          if (Array.isArray(remoteVideoContainer)) remoteVideoContainer = remoteVideoContainer[0];
+
+          if (remoteVideoContainer) {
+            remoteVideoContainer.srcObject = e.streams[0];
+          }
+        });
+      };
     },
   },
 });
@@ -191,6 +197,10 @@ export default Vue.extend({
       flex: 1;
       width: 0;
       height: 100%;
+
+      &::-webkit-media-controls-fullscreen-button {
+        display: none;
+      }
     }
 
     .local-video {

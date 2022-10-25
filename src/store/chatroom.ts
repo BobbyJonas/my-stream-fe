@@ -10,7 +10,6 @@ export enum CHATROOM_INIT_STATUS {
   "INIT_SOCKET" = 1,
   "GET_USER_MEDIA" = 2,
   "CONFIRM_USER" = 3,
-  "RTC_CONNECTION" = 4,
   "DONE" = 5,
 }
 

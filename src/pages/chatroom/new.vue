@@ -190,7 +190,7 @@ export default Vue.extend({
       event.preventDefault();
 
       this.$axios
-        .post("/db/user", { ...this.userInfoForm })
+        .post("/db/user", { ...this.userInfoForm, signUpTime: Date.now() } as IUserModel)
         .then(res => {
           const { status, data } = res;
           if (status === 200) {

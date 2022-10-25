@@ -1,6 +1,6 @@
 <template>
   <div class="primary-sidebar-container">
-    <TextChatbox :pc-instance="pcInstance" />
+    <TextChatbox ref="textChatboxRef" :pc-instance-map="pcInstanceMap" />
   </div>
 </template>
 
@@ -14,6 +14,7 @@ import {
   reactive,
   PropType,
   Ref,
+  getCurrentInstance,
 } from "@nuxtjs/composition-api";
 
 import { defineProps } from "@vue/runtime-dom";
@@ -21,9 +22,19 @@ import TextChatbox from "./widgets/TextChatbox.vue";
 
 import socketioService from "~/assets/services/socket-io-client";
 
+const textChatboxRef = ref<InstanceType<typeof TextChatbox> | null>(null);
+
 defineProps<{
-  pcInstance: Ref<RTCPeerConnection | null>;
+  pcInstanceMap: Record<string, RTCPeerConnection | null>;
 }>();
+
+const addLocalStreamToPeer = (pcInstance: RTCPeerConnection, receiveSocketId: string) => {
+  textChatboxRef.value?.createDataChannel(pcInstance, receiveSocketId);
+};
+
+defineExpose({
+  addLocalStreamToPeer,
+});
 
 onMounted(() => {});
 </script>

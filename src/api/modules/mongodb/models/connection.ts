@@ -6,6 +6,7 @@ export interface IConnectionModel {
   socketId: string;
   roomId: string;
   userId: string;
+  time: number;
 }
 
 const connectionSchema = new Schema<IConnectionModel>({
@@ -15,9 +16,15 @@ const connectionSchema = new Schema<IConnectionModel>({
     type: Types.ObjectId,
     ref: "User",
   } as any,
+  time: {
+    type: Number,
+    default: Date.now(),
+  },
 });
 
-const ConnectionModel = db.models.Connection || model("Connection", connectionSchema);
+connectionSchema.index({ time: 1 });
+
+const ConnectionModel = db.models?.Connection || model("Connection", connectionSchema);
 
 export const createConnectionItem = (
   data: Partial<IConnectionModel>
@@ -31,9 +38,11 @@ export const createConnectionItem = (
   });
 };
 
-export const getConnectionList = (): Promise<Array<IConnectionModel>> => {
+export const getConnectionList = (
+  constraints?: Partial<IConnectionModel>
+): Promise<Array<IConnectionModel>> => {
   return new Promise((resolve, reject) => {
-    ConnectionModel.find((reason, result) => {
+    ConnectionModel.find(constraints || {}, (reason, result) => {
       if (reason instanceof Error) reject(reason);
       else resolve(result);
       return result;
@@ -42,7 +51,7 @@ export const getConnectionList = (): Promise<Array<IConnectionModel>> => {
 };
 
 export const removeConnectionItem = (constraints: Partial<IConnectionModel>) => {
-  return ConnectionModel.deleteOne(constraints);
+  return ConnectionModel.findOneAndDelete(constraints);
 };
 
 export const modifyConnectionItem = (

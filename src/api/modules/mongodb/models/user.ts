@@ -26,15 +26,15 @@ export interface IUserModel {
   town: IUserLocationType;
   sex: IUserSexEnum; // 0: 保密; 1: 男; 2: 女
   wallpaper: string; // 聊天壁纸
-  signUpTime: Date; // 注册时间
-  lastLoginTime: Date; // 最后一次登录
+  signUpTime: number; // 注册时间
+  lastLoginTime: number; // 最后一次登录
 }
 
 const userSchema = new Schema<IUserModel>({
   name: { type: String },
   password: String,
-  code: { type: String, unique: true },
-  photo: { type: String, default: "/img/picture.png" },
+  code: { type: String },
+  photo: { type: String, default: "" },
   signature: { type: String, default: "这个人很懒，暂时没有签名哦！" },
   nickname: { type: String, default: "" },
   email: { type: String, default: "" },
@@ -43,9 +43,11 @@ const userSchema = new Schema<IUserModel>({
   town: { type: Object, default: { name: "海淀区", value: "110108" } },
   sex: { type: String, default: IUserSexEnum.UNKNOWN },
   wallpaper: { type: String, default: "/img/wallpaper.jpg" },
-  signUpTime: { type: Date },
-  lastLoginTime: { type: Date },
+  signUpTime: { type: Number, default: Date.now() },
+  lastLoginTime: { type: Number, default: Date.now() },
 });
+
+userSchema.index({ signUpTime: 1 });
 
 const UserModel = db.models?.User || model("User", userSchema);
 

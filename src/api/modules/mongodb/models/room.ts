@@ -21,7 +21,7 @@ const roomSchema = new Schema<IRoomModel>({
   lastActiveTime: { type: Date, default: Date.now() },
 });
 
-const RoomModel = db.models.Room || model("Room", roomSchema);
+const RoomModel = db.models?.Room || model("Room", roomSchema);
 
 export const createRoomItem = (data: Partial<IRoomModel>): Promise<IRoomModel> => {
   const insertObj = new RoomModel(data);

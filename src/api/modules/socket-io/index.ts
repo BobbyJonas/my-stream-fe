@@ -10,6 +10,7 @@ import type { Module } from "@nuxt/types";
 
 import {
   createConnectionItem as addDbConnectionRecord,
+  IConnectionModel,
   removeConnectionItem as removeDbConnectionRecord,
 } from "../mongodb/models/connection";
 
@@ -39,8 +40,8 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     const io = new Server(server, {
       cors: {
+        origin: "*",
         methods: ["GET", "POST"],
-        credentials: true,
       },
     });
 
@@ -57,17 +58,17 @@ const socketModule: Module<ISocketModuleOptions> = function (moduleOptions) {
 
     // Add socket.io events
     io.on("connection", socket => {
-      console.log(`${chalk.bgBlue(" Socket.io ")} ${socket.id} connected`);
-
-      addDbConnectionRecord({ socketId: socket.id });
       createSocketHandler(socket, io);
+      addDbConnectionRecord({ socketId: socket.id, time: Date.now() }).then(() => {
+        console.log(`${chalk.bgBlue(" Socket.io ")} ${socket.id} connected`);
+      });
 
       socket.on("disconnect", () => {
         removeDbConnectionRecord({ socketId: socket.id })
-          .then(res => {
-            // TODO: 广播退出消息
-            io.emit("__leave", { from: socket.id });
-            console.log(`Socket ID: ${socket.id} deleted`);
+          .then((res: IConnectionModel) => {
+            console.log("leave:", res.roomId);
+            if (res.roomId) io.in(res.roomId).emit("__leave", { from: socket.id });
+            console.log(`${chalk.bgBlue(" Socket.io ")} ${socket.id} deleted`);
           })
           .catch(err => {
             consola.error(err);

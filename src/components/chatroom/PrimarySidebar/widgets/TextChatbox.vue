@@ -29,6 +29,7 @@
           placeholder="请输入聊天内容"
           rows="3"
           max-rows="8"
+          @keydown="onTextAreaKeyDown"
           @focus="
             () => {
               sendContentInputEnabled = true;
@@ -57,11 +58,11 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState } from "vuex";
-import { ref, PropType, Ref } from "@nuxtjs/composition-api";
+import { PropType } from "@nuxtjs/composition-api";
 
 import moment from "moment";
 
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -72,8 +73,7 @@ export interface ITextChatboxState {
   sendContentValue: string;
   sendContentInputEnabled: boolean;
 
-  dataChannel: Ref<RTCDataChannel | null>;
-  channelReady: boolean;
+  dataChannelMap: Record<string, RTCDataChannel | null>;
 }
 
 type State = ITextChatboxState;
@@ -82,21 +82,20 @@ export default Vue.extend({
   components: {} as Record<string, Component>,
 
   props: {
-    pcInstance: {
+    pcInstanceMap: {
       required: true,
-      type: Object as PropType<Ref<RTCPeerConnection | null>>,
+      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
     },
   },
 
   data() {
     return {
       chatList: [],
-      funcInitReady: false,
+      funcInitReady: true,
       sendContentValue: "",
       sendContentInputEnabled: false,
 
-      dataChannel: ref(null),
-      channelReady: false,
+      dataChannelMap: {},
     } as State;
   },
 
@@ -106,33 +105,8 @@ export default Vue.extend({
     >),
   },
 
-  watch: {
-    currentStep(currentValue) {
-      switch (currentValue) {
-        case CHATROOM_INIT_STATUS.RTC_CONNECTION: {
-          this.addCurrentStepProcess();
-          this.createDataChannel();
-          this.removeCurrentStepProcess();
-          setTimeout(() => {
-            if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
-          }, 0);
-          break;
-        }
-        case CHATROOM_INIT_STATUS.DONE:
-        default:
-          break;
-      }
-    },
-  },
-
-  beforeMount() {
-    if (this.currentStep === CHATROOM_INIT_STATUS.DONE) {
-      this.createDataChannel();
-    }
-  },
-
   beforeDestroy() {
-    this.dataChannel.value?.close();
+    // this.dataChannel.value?.close();
   },
 
   methods: {
@@ -142,34 +116,32 @@ export default Vue.extend({
       removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
     }),
 
-    createDataChannel() {
-      const pcInstance: RTCPeerConnection = this.pcInstance?.value || ({} as any);
-      if (!this.dataChannel.value) {
-        this.dataChannel = ref(
-          pcInstance.createDataChannel?.("chatbox-message", {
-            protocol: "json",
-            maxRetransmits: 5,
-          }) ?? null
-        );
-        const dataChannel: RTCDataChannel = this.dataChannel.value || ({} as any);
-        dataChannel.onopen = this.onChannelStatusChange;
-        dataChannel.onclose = this.onChannelStatusChange;
-        dataChannel.onmessage = this.onRemoteMessage;
+    createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string) {
+      const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
+      if (!currentDataChannel) {
+        const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
+          protocol: "json",
+          maxRetransmits: 5,
+        });
+        newDataChannel.onopen = this.onChannelStatusChange;
+        newDataChannel.onclose = this.onChannelStatusChange;
+        newDataChannel.onmessage = this.onRemoteMessage;
+        this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
       }
-      pcInstance.ondatachannel = this.onRemoteChannelConnected;
-      this.funcInitReady = true;
+      pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
+        this.onRemoteChannelConnected(e, receiveSocketId);
+      };
     },
 
-    onRemoteChannelConnected(e: RTCDataChannelEvent): void {
-      this.dataChannel = ref(e.channel);
-      const dataChannel: RTCDataChannel = this.dataChannel.value || ({} as any);
-      dataChannel.onopen = this.onChannelStatusChange;
-      dataChannel.onclose = this.onChannelStatusChange;
-      dataChannel.onmessage = this.onRemoteMessage;
-
-      this.funcInitReady = true;
+    onRemoteChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {
+      const remoteDataChannel = e.channel;
+      remoteDataChannel.onopen = this.onChannelStatusChange;
+      remoteDataChannel.onclose = this.onChannelStatusChange;
+      remoteDataChannel.onmessage = this.onRemoteMessage;
+      this.$set(this.dataChannelMap, receiveSocketId, remoteDataChannel);
     },
 
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     onChannelStatusChange(event: Event): void {},
 
     onRemoteMessage(e: MessageEvent): void {
@@ -193,13 +165,20 @@ export default Vue.extend({
       });
     },
 
+    onTextAreaKeyDown(e: KeyboardEvent): void {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        this.onSendTextClick();
+      }
+    },
+
     onSendTextClick(): void {
-      if (
-        !(this.dataChannel?.value?.readyState === "open") ||
-        !(this.sendContentValue.length > 0)
-      ) {
-        if (this.sendContentValue.length > 0)
-          makeToast("发生错误", "DataChannel is not ready", "warning");
+      const sendContent = (this.sendContentValue || "").replace(/^\s+|\s+$/g, "");
+      if (!(sendContent.length > 0) || !(Object.keys(this.dataChannelMap).length > 0)) {
+        if (!(sendContent.length > 0)) {
+          makeToast("发送失败", "输入内容不得为空", "warning");
+        } else {
+          makeToast("发送消息错误", "当前没有连线用户", "danger");
+        }
         return;
       }
 
@@ -207,17 +186,24 @@ export default Vue.extend({
         roomId: this.currentRoomId,
         timeSent: new Date(),
         msgType: "text",
-        msgContent: this.sendContentValue,
+        msgContent: sendContent,
         read: false,
         userId: this.currentUserRole._id,
         userNickname: this.currentUserRole.nickname,
       };
 
-      this.dataChannel.value?.send(JSON.stringify(currentMessage));
+      const sendValue = JSON.stringify(currentMessage);
+      this.onRemoteMessage({ data: sendValue } as any);
+      Object.keys(this.dataChannelMap).forEach(socketId => {
+        const dataChannel = this.dataChannelMap[socketId];
+        if (dataChannel?.readyState === "open") {
+          dataChannel.send(sendValue);
+        }
+      });
       this.sendContentValue = "";
     },
 
-    date2Text(value: Date) {
+    date2Text(value: Date): string {
       return moment(value).format("HH:mm:ss");
     },
   },
