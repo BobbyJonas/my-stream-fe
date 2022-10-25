@@ -8,11 +8,9 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapActions, mapMutations, mapState } from "vuex";
-import { Ref, ref, reactive } from "@nuxtjs/composition-api";
 
 import adapter from "webrtc-adapter";
 
-import { Socket } from "socket.io-client";
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
@@ -105,6 +103,7 @@ export default Vue.extend({
           break;
         }
         case CHATROOM_INIT_STATUS.DONE: {
+          socketioService.socket?.on("__leave", this.onRemoteDisconnect);
           break;
         }
         default:
@@ -112,8 +111,6 @@ export default Vue.extend({
       }
     },
   },
-
-  created() {},
 
   beforeMount() {
     // console.log(adapter.browserDetails.browser);
@@ -125,6 +122,8 @@ export default Vue.extend({
       this.setCurrentUserRole(currentRoleObj);
     }
 
+    socketioService.socket?.on("__leave", this.onRemoteDisconnect);
+
     setTimeout(() => {
       this.setCurrentStep(CHATROOM_INIT_STATUS.INIT_SOCKET);
     }, 0);
@@ -132,7 +131,6 @@ export default Vue.extend({
 
   beforeDestroy() {
     socketioService.disconnect();
-    // TODO: this.pcInstance.value?.close();
     this.setCurrentRoomId(undefined);
     this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
   },
@@ -150,9 +148,6 @@ export default Vue.extend({
     }),
 
     onSocketJoin(args: IConnectionModel[]) {
-      console.log(args);
-      console.log(socketioService.socket.id);
-
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
 
@@ -164,18 +159,16 @@ export default Vue.extend({
 
           const pcInstance = pcInstanceMap?.[socketId];
           if (!pcInstance) {
-            console.log("new");
-
             const pcInstance = new window.RTCPeerConnection({
               iceServers: iceServerPublicList.map(item => ({ urls: item })),
             });
             pcInstance.onicecandidate = this.onRtcIceCandidate;
             this.$set(this.pcInstanceMap, socketId, pcInstance);
-            (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalStreamToPeer(
+            (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
               pcInstance,
               socketId
             );
-            (this.$refs.primarySidebarRef as InstanceType<any>).addLocalStreamToPeer(
+            (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(
               pcInstance,
               socketId
             );
@@ -212,11 +205,11 @@ export default Vue.extend({
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));
 
       if (pcInstance !== this.pcInstanceMap[from]) {
-        (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalStreamToPeer(
+        (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
           pcInstance,
           from
         );
-        (this.$refs.primarySidebarRef as InstanceType<any>).addLocalStreamToPeer(pcInstance, from);
+        (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(pcInstance, from);
         this.$set(this.pcInstanceMap, from, pcInstance);
       }
 
@@ -280,6 +273,15 @@ export default Vue.extend({
             data: JSON.stringify(sdp),
           });
         });
+    },
+
+    onRemoteDisconnect(args: { from: string }) {
+      this.pcInstanceMap[args.from]?.close();
+      this.$delete(this.pcInstanceMap, args.from);
+      (this.$refs.mainContentRef as InstanceType<typeof MainContent>).removeLocalChannelFromPeer(
+        args
+      );
+      (this.$refs.primarySidebarRef as InstanceType<any>).removeLocalStreamToPeer(args);
     },
   },
 });

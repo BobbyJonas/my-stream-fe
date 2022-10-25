@@ -13,14 +13,10 @@ import {
   ref,
   reactive,
   PropType,
-  Ref,
-  getCurrentInstance,
 } from "@nuxtjs/composition-api";
 
 import { defineProps } from "@vue/runtime-dom";
 import TextChatbox from "./widgets/TextChatbox.vue";
-
-import socketioService from "~/assets/services/socket-io-client";
 
 const textChatboxRef = ref<InstanceType<typeof TextChatbox> | null>(null);
 
@@ -28,12 +24,17 @@ defineProps<{
   pcInstanceMap: Record<string, RTCPeerConnection | null>;
 }>();
 
-const addLocalStreamToPeer = (pcInstance: RTCPeerConnection, receiveSocketId: string) => {
+const addLocalChannelToPeer = (pcInstance: RTCPeerConnection, receiveSocketId: string) => {
   textChatboxRef.value?.createDataChannel(pcInstance, receiveSocketId);
 };
 
+const removeLocalChannelFromPeer = (args: { from: string }) => {
+  textChatboxRef.value?.removeDataChannel(args);
+};
+
 defineExpose({
-  addLocalStreamToPeer,
+  addLocalChannelToPeer,
+  removeLocalChannelFromPeer,
 });
 
 onMounted(() => {});

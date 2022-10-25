@@ -62,7 +62,9 @@ import { PropType } from "@nuxtjs/composition-api";
 
 import moment from "moment";
 
-import ChatroomStore from "~/store/chatroom";
+import socketioService from "~/assets/services/socket-io-client";
+
+import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -105,8 +107,17 @@ export default Vue.extend({
     >),
   },
 
-  beforeDestroy() {
-    // this.dataChannel.value?.close();
+  watch: {
+    currentStep(currentValue) {
+      switch (currentValue) {
+        case CHATROOM_INIT_STATUS.DONE: {
+          if (this.currentStepProcess === 0) this.setInitReady(true);
+          break;
+        }
+        default:
+          break;
+      }
+    },
   },
 
   methods: {
@@ -131,6 +142,11 @@ export default Vue.extend({
       pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
         this.onRemoteChannelConnected(e, receiveSocketId);
       };
+    },
+
+    removeDataChannel({ from }: { from: string }): void {
+      this.dataChannelMap[from]?.close();
+      this.$delete(this.dataChannelMap, from);
     },
 
     onRemoteChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {

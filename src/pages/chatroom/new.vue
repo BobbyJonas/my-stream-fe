@@ -177,6 +177,8 @@ export default Vue.extend({
 
     onRoleCardClick(index: number) {
       this.selectRoleIndex = index;
+      window.localStorage["current-role"] = JSON.stringify(this.userRoleList[this.selectRoleIndex]);
+      this.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
     },
 
     onAddCardClick() {
@@ -221,11 +223,7 @@ export default Vue.extend({
     onCreateChatroom() {
       if (this.userRoleList[this.selectRoleIndex]) {
         this.loading = true;
-        window.localStorage["current-role"] = JSON.stringify(
-          this.userRoleList[this.selectRoleIndex]
-        );
         const roomId = uuidv4();
-        this.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
         this.$router.push(`/chatroom/${roomId}`);
       }
     },

@@ -116,10 +116,7 @@ export default Vue.extend({
           break;
         }
         case CHATROOM_INIT_STATUS.DONE: {
-          if (this.currentStepProcess === 0) {
-            this.setInitReady(true);
-            socketioService.socket?.on("__leave", this.onRemoteDisconnect);
-          }
+          if (this.currentStepProcess === 0) this.setInitReady(true);
           break;
         }
         default:
@@ -130,10 +127,6 @@ export default Vue.extend({
 
   created() {
     this.localStreamRef = ref<MediaStream | null>(null);
-  },
-
-  mounted() {
-    socketioService.socket?.on("__leave", this.onRemoteDisconnect);
   },
 
   methods: {
@@ -147,13 +140,13 @@ export default Vue.extend({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
 
-    onRemoteDisconnect({ from }: { from: string }): void {
+    removeLocalChannelFromPeer({ from }: { from: string }): void {
       this.pcInstanceMap[from]?.close();
       this.$delete(this.pcInstanceMap, from);
       this.$delete(this.remoteStreamList, from);
     },
 
-    addLocalStreamToPeer(pcInstance: RTCPeerConnection, receiveSocketId: string): void {
+    addLocalChannelToPeer(pcInstance: RTCPeerConnection, receiveSocketId: string): void {
       const localStream = this.localStreamRef.value;
 
       if (this.localStreamRef.value) {
