@@ -1,6 +1,6 @@
 import { Module, VuexModule, Mutation, Action, MutationAction } from "vuex-module-decorators";
 /* eslint-disable @typescript-eslint/ban-types */
-import { $axios } from "~/assets/utils/store-api";
+import { $axios } from "~/assets/utils/storeApi";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
 import type { IRoomModel } from "~/api/modules/mongodb/models/room";
 import type { IConnectionModel } from "~/api/modules/mongodb/models/connection";

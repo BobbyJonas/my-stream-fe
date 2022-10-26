@@ -1,25 +1,53 @@
 <template>
-  <b-overlay :show="!initReady" variant="light" :opacity="0.65" :style="{ width: '100%' }">
+  <b-overlay
+    class="primary-content-overlay"
+    :show="!initReady"
+    variant="light"
+    :opacity="0.65"
+    :style="{ width: '100%' }"
+  >
     <div class="primary-content-container">
       <div class="video-chat-container">
+        <aside role="navigation" class="toolbox">
+          <b-button
+            v-b-tooltip.hover.v-secondary
+            title="切换屏幕分享"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+          >
+            <b-icon class="btn-icon" icon="window" />
+            <!-- <b-icon class="btn-icon" icon="webcam" /> -->
+          </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary
+            title="结束通话"
+            class="operation-btn"
+            variant="danger"
+            pill
+          >
+            <b-icon class="btn-icon" icon="telephone-fill" />
+          </b-button>
+        </aside>
         <video
           ref="localVideoRef"
           class="video-container local-video"
           muted
           autoplay
-          controlsList="nodownload"
           playsinline
           disablePictureInPicture
           @contextmenu="() => false"
         />
 
         <video
-          v-for="item in Object.keys(pcInstanceMap)"
+          v-for="item in Object.keys(remoteStreamList)"
           :ref="`remoteVideoRef_${item}`"
           :key="item"
           class="video-container"
           autoplay
           playsinline
+          disablePictureInPicture
+          @contextmenu="() => false"
         />
       </div>
     </div>
@@ -29,12 +57,8 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
-import type { AxiosInstance } from "axios";
-import { PropType, Ref, ref } from "@nuxtjs/composition-api";
+import { Ref, ref } from "@nuxtjs/composition-api";
 
-import socketioService from "~/assets/services/socket-io-client";
-
-import type { IUserModel } from "~/api/modules/mongodb/models/user";
 import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
 import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -49,13 +73,6 @@ type State = IMainContentState;
 
 export default Vue.extend({
   components: {} as Record<string, Component>,
-
-  props: {
-    pcInstanceMap: {
-      required: true,
-      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
-    },
-  },
 
   data() {
     return {
@@ -125,8 +142,10 @@ export default Vue.extend({
     },
   },
 
-  created() {
+  mounted() {
     this.localStreamRef = ref<MediaStream | null>(null);
+    this.$bus.$on("global/join", this.addLocalChannelToPeer);
+    this.$bus.$on("global/leave", this.removeLocalChannelFromPeer);
   },
 
   methods: {
@@ -141,8 +160,6 @@ export default Vue.extend({
     }),
 
     removeLocalChannelFromPeer({ from }: { from: string }): void {
-      this.pcInstanceMap[from]?.close();
-      this.$delete(this.pcInstanceMap, from);
       this.$delete(this.remoteStreamList, from);
     },
 
@@ -176,12 +193,18 @@ export default Vue.extend({
 </script>
 
 <style lang="less" scoped>
-.primary-content-container {
+@import "@/assets/styles/mixin.less";
+
+.primary-content-overlay {
   flex: 1;
+}
+
+.primary-content-container {
   position: relative;
   height: 100%;
 
   .video-chat-container {
+    position: relative;
     display: flex;
     height: 100%;
     width: 100%;
@@ -198,6 +221,42 @@ export default Vue.extend({
 
     .local-video {
       transform: rotateY(180deg);
+    }
+
+    .toolbox {
+      position: absolute;
+      bottom: 64px;
+      left: 50%;
+      z-index: 9;
+      padding: 8px;
+      transform: translate(-50%);
+      border-radius: @border-radius-infinite;
+      background-color: @text-color-base;
+      opacity: 0.75;
+      transition: opacity 0.3s;
+
+      .operation-btn {
+        width: 42px;
+        height: 42px;
+        line-height: 42px;
+        text-align: center;
+        font-size: 16px;
+        color: whitesmoke;
+
+        &:not(:last-child) {
+          margin-right: 4px;
+        }
+
+        .btn-icon {
+          vertical-align: 2px;
+        }
+      }
+    }
+
+    &:hover {
+      .toolbox {
+        opacity: 1;
+      }
     }
   }
 }

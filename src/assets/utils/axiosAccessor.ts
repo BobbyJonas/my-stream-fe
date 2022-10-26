@@ -1,5 +1,5 @@
 import { Plugin } from "@nuxt/types";
-import { initializeAxios } from "~/assets/utils/store-api";
+import { initializeAxios } from "~/assets/utils/storeApi";
 
 const accessor: Plugin = context => {
   const { $axios } = context;

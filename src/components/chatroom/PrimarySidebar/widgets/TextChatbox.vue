@@ -58,11 +58,8 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState } from "vuex";
-import { PropType } from "@nuxtjs/composition-api";
 
 import moment from "moment";
-
-import socketioService from "~/assets/services/socket-io-client";
 
 import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
@@ -82,13 +79,6 @@ type State = ITextChatboxState;
 
 export default Vue.extend({
   components: {} as Record<string, Component>,
-
-  props: {
-    pcInstanceMap: {
-      required: true,
-      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
-    },
-  },
 
   data() {
     return {
@@ -118,6 +108,11 @@ export default Vue.extend({
           break;
       }
     },
+  },
+
+  mounted() {
+    this.$bus.$on("global/join", this.createDataChannel);
+    this.$bus.$on("global/leave", this.removeDataChannel);
   },
 
   methods: {

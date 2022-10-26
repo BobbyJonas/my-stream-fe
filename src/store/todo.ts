@@ -1,5 +1,5 @@
 import { Module, VuexModule, Mutation, Action } from "vuex-module-decorators";
-import { $axios } from "~/assets/utils/store-api";
+import { $axios } from "~/assets/utils/storeApi";
 
 export type ITodoState = {
   id?: number;

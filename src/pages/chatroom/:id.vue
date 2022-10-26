@@ -1,7 +1,7 @@
 <template>
   <div class="chatroom-content">
-    <MainContent ref="mainContentRef" :pc-instance-map="pcInstanceMap"></MainContent>
-    <PrimarySidebar ref="primarySidebarRef" :pc-instance-map="pcInstanceMap"></PrimarySidebar>
+    <MainContent ref="mainContentRef"></MainContent>
+    <PrimarySidebar ref="primarySidebarRef"></PrimarySidebar>
   </div>
 </template>
 
@@ -133,6 +133,8 @@ export default Vue.extend({
     socketioService.disconnect();
     this.setCurrentRoomId(undefined);
     this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
+    this.$bus.$off("global/join");
+    this.$bus.$off("global/leave");
   },
 
   methods: {
@@ -164,14 +166,7 @@ export default Vue.extend({
             });
             pcInstance.onicecandidate = this.onRtcIceCandidate;
             this.$set(this.pcInstanceMap, socketId, pcInstance);
-            (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
-              pcInstance,
-              socketId
-            );
-            (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(
-              pcInstance,
-              socketId
-            );
+            this.$bus.$emit("global/join", pcInstance, socketId);
           }
         });
       if (currentIndex >= 0) {
@@ -205,11 +200,7 @@ export default Vue.extend({
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));
 
       if (pcInstance !== this.pcInstanceMap[from]) {
-        (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
-          pcInstance,
-          from
-        );
-        (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(pcInstance, from);
+        this.$bus.$emit("global/join", pcInstance, from);
         this.$set(this.pcInstanceMap, from, pcInstance);
       }
 
@@ -278,10 +269,7 @@ export default Vue.extend({
     onRemoteDisconnect(args: { from: string }) {
       this.pcInstanceMap[args.from]?.close();
       this.$delete(this.pcInstanceMap, args.from);
-      (this.$refs.mainContentRef as InstanceType<typeof MainContent>).removeLocalChannelFromPeer(
-        args
-      );
-      (this.$refs.primarySidebarRef as InstanceType<any>).removeLocalStreamToPeer(args);
+      this.$bus.$emit("global/leave", args);
     },
   },
 });
