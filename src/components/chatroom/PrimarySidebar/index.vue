@@ -49,8 +49,8 @@ export default Vue.extend({
 
   methods: {
     ...mapMutations({
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
 
     resizeHandler(data: {

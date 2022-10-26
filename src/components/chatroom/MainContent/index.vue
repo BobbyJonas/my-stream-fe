@@ -59,7 +59,9 @@ import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
+
 import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
 
@@ -82,19 +84,18 @@ export default Vue.extend({
   },
 
   computed: {
-    ...mapState("chatroom", [
-      "currentUserRole",
-      "currentRoomId",
-      "currentStep",
-      "currentStepProcess",
-      "initReady",
-    ] as Array<Properties<typeof ChatroomStore>>),
+    ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+    ...mapState("connection", ["currentStep", "currentStepProcess", "initReady"] as Array<
+      Properties<typeof ConnectionStore>
+    >),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CHATROOM_INIT_STATUS.GET_USER_MEDIA: {
+        case CONNECTION_INIT_STATUS.GET_USER_MEDIA: {
           this.addCurrentStepProcess();
 
           const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
@@ -120,7 +121,7 @@ export default Vue.extend({
 
                 this.removeCurrentStepProcess();
                 if (this.currentStepProcess === 0) {
-                  this.setCurrentStep(CHATROOM_INIT_STATUS.CONFIRM_USER);
+                  this.setCurrentStep(CONNECTION_INIT_STATUS.CONFIRM_USER);
                 }
               })
               .catch(err => {
@@ -132,7 +133,7 @@ export default Vue.extend({
           }
           break;
         }
-        case CHATROOM_INIT_STATUS.DONE: {
+        case CONNECTION_INIT_STATUS.DONE: {
           if (this.currentStepProcess === 0) this.setInitReady(true);
           break;
         }
@@ -150,10 +151,10 @@ export default Vue.extend({
 
   methods: {
     ...mapMutations({
-      setInitReady: "chatroom/setInitReady",
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+      setInitReady: "connection/setInitReady",
+      setCurrentStep: "connection/setCurrentStep",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
     ...mapActions({
       chatroomEnter: "chatroom/chatroomEnter",

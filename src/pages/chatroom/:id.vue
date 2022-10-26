@@ -14,13 +14,13 @@ import adapter from "webrtc-adapter";
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
-import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 import type { ISocketRTCConnectionMessage } from "~/api/modules/socket-io/handler";
 
 import MainContent from "~/components/chatroom/MainContent/index.vue";
 import PrimarySidebar from "~/components/chatroom/PrimarySidebar/index.vue";
 
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 import { makeToast, Properties } from "~/assets/utils/common";
 import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
@@ -45,25 +45,25 @@ export default Vue.extend({
     } as State;
   },
   computed: {
-    ...mapState("chatroom", [
-      "currentUserRole",
-      "currentRoomId",
-      "currentStep",
-      "currentStepProcess",
-    ] as Array<Properties<typeof ChatroomStore>>),
+    ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+    ...mapState("connection", ["currentStep", "currentStepProcess"] as Array<
+      Properties<typeof ConnectionStore>
+    >),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CHATROOM_INIT_STATUS.INIT_SOCKET: {
+        case CONNECTION_INIT_STATUS.INIT_SOCKET: {
           if (!socketioService.socket?.connected) {
             socketioService.setupSocketConnection();
 
             socketioService.socket.on("connect", () => {
               if (this.currentUserRole) {
                 setTimeout(() => {
-                  this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
+                  this.setCurrentStep(CONNECTION_INIT_STATUS.GET_USER_MEDIA);
                 }, 0);
               } else {
                 makeToast("加载错误", "当前用户信息为空，请选择用户信息后再进入", "danger");
@@ -76,12 +76,12 @@ export default Vue.extend({
             socketioService.socket.on("__candidate", this.onSocketCandidate);
           } else {
             setTimeout(() => {
-              this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
+              this.setCurrentStep(CONNECTION_INIT_STATUS.GET_USER_MEDIA);
             }, 0);
           }
           break;
         }
-        case CHATROOM_INIT_STATUS.CONFIRM_USER: {
+        case CONNECTION_INIT_STATUS.CONFIRM_USER: {
           this.addCurrentStepProcess();
 
           const socketId = socketioService.socket.id;
@@ -98,11 +98,11 @@ export default Vue.extend({
           this.removeCurrentStepProcess();
 
           setTimeout(() => {
-            if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
+            if (this.currentStepProcess === 0) this.setCurrentStep(CONNECTION_INIT_STATUS.DONE);
           }, 0);
           break;
         }
-        case CHATROOM_INIT_STATUS.DONE: {
+        case CONNECTION_INIT_STATUS.DONE: {
           socketioService.socket?.on("__leave", this.onRemoteDisconnect);
           break;
         }
@@ -125,28 +125,39 @@ export default Vue.extend({
     socketioService.socket?.on("__leave", this.onRemoteDisconnect);
 
     setTimeout(() => {
-      this.setCurrentStep(CHATROOM_INIT_STATUS.INIT_SOCKET);
+      this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
     }, 0);
   },
 
   beforeDestroy() {
     socketioService.disconnect();
     this.setCurrentRoomId(undefined);
-    this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
+    this.setCurrentStep(CONNECTION_INIT_STATUS.PREPARED);
     this.$bus.$off("global/join");
     this.$bus.$off("global/leave");
   },
 
   methods: {
-    ...mapMutations({
+    ...(mapMutations({
       setCurrentUserRole: "chatroom/setCurrentUserRole",
       setCurrentRoomId: "chatroom/setCurrentRoomId",
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+    }) as {
+      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
     }),
-    ...mapActions({
+
+    ...(mapMutations({
+      setPcInstanceMap: "connection/setPcInstanceMap",
+      setCurrentStep: "connection/setCurrentStep",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
+    }) as {
+      [x in Properties<typeof ConnectionStore>]: ConnectionStore[x];
+    }),
+
+    ...(mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
+    }) as {
+      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
     }),
 
     onSocketJoin(args: IConnectionModel[]) {
@@ -167,6 +178,7 @@ export default Vue.extend({
             pcInstance.onicecandidate = this.onRtcIceCandidate;
             this.$set(this.pcInstanceMap, socketId, pcInstance);
             this.$bus.$emit("global/join", pcInstance, socketId);
+            this.setPcInstanceMap(this.pcInstanceMap);
           }
         });
       if (currentIndex >= 0) {

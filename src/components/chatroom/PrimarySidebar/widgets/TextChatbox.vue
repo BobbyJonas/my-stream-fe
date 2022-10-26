@@ -61,7 +61,8 @@ import { mapMutations, mapState } from "vuex";
 
 import moment from "moment";
 
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -92,15 +93,16 @@ export default Vue.extend({
   },
 
   computed: {
-    ...mapState("chatroom", ["currentStep", "currentRoomId", "currentUserRole"] as Array<
+    ...mapState("chatroom", ["currentRoomId", "currentUserRole"] as Array<
       Properties<typeof ChatroomStore>
     >),
+    ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CHATROOM_INIT_STATUS.DONE: {
+        case CONNECTION_INIT_STATUS.DONE: {
           if (this.currentStepProcess === 0) this.setInitReady(true);
           break;
         }
@@ -117,9 +119,9 @@ export default Vue.extend({
 
   methods: {
     ...mapMutations({
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+      setCurrentStep: "connection/setCurrentStep",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
 
     createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string) {

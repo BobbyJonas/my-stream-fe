@@ -168,8 +168,6 @@ export default Vue.extend({
     }
   },
 
-  beforeDestroy() {},
-
   methods: {
     ...mapMutations({
       setCurrentUserRole: "chatroom/setCurrentUserRole",
