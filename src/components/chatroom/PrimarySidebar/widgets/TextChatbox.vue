@@ -58,13 +58,11 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState } from "vuex";
-import { PropType } from "@nuxtjs/composition-api";
 
 import moment from "moment";
 
-import socketioService from "~/assets/services/socket-io-client";
-
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -83,13 +81,6 @@ type State = ITextChatboxState;
 export default Vue.extend({
   components: {} as Record<string, Component>,
 
-  props: {
-    pcInstanceMap: {
-      required: true,
-      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
-    },
-  },
-
   data() {
     return {
       chatList: [],
@@ -102,46 +93,46 @@ export default Vue.extend({
   },
 
   computed: {
-    ...mapState("chatroom", ["currentStep", "currentRoomId", "currentUserRole"] as Array<
+    ...mapState("chatroom", ["currentRoomId", "currentUserRole"] as Array<
       Properties<typeof ChatroomStore>
     >),
+    ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
   },
 
-  watch: {
-    currentStep(currentValue) {
-      switch (currentValue) {
-        case CHATROOM_INIT_STATUS.DONE: {
-          if (this.currentStepProcess === 0) this.setInitReady(true);
-          break;
-        }
-        default:
-          break;
-      }
-    },
+  created() {
+    this.$bus.$on("global/createChannel", this.createDataChannel);
+    this.$bus.$on("global/removeChannel", this.removeDataChannel);
+    this.$bus.$emit("connection/addWidgetNum");
+  },
+
+  beforeDestroy() {
+    this.$bus.$emit("connection/removeWidgetNum");
   },
 
   methods: {
     ...mapMutations({
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+      setCurrentStep: "connection/setCurrentStep",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
 
-    createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string) {
+    createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string, next: () => void) {
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
-      if (!currentDataChannel) {
-        const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
-          protocol: "json",
-          maxRetransmits: 5,
-        });
-        newDataChannel.onopen = this.onChannelStatusChange;
-        newDataChannel.onclose = this.onChannelStatusChange;
-        newDataChannel.onmessage = this.onRemoteMessage;
-        this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
-      }
+      if (currentDataChannel) currentDataChannel?.close();
+
+      const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
+        protocol: "json",
+        maxRetransmits: 5,
+      });
+      newDataChannel.onopen = this.onChannelStatusChange;
+      newDataChannel.onclose = this.onChannelStatusChange;
+      newDataChannel.onmessage = this.onRemoteMessage;
+      this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
+
       pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
         this.onRemoteChannelConnected(e, receiveSocketId);
       };
+      next();
     },
 
     removeDataChannel({ from }: { from: string }): void {

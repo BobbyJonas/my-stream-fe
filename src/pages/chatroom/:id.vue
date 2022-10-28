@@ -1,7 +1,7 @@
 <template>
   <div class="chatroom-content">
-    <MainContent ref="mainContentRef" :pc-instance-map="pcInstanceMap"></MainContent>
-    <PrimarySidebar ref="primarySidebarRef" :pc-instance-map="pcInstanceMap"></PrimarySidebar>
+    <MainContent ref="mainContentRef"></MainContent>
+    <PrimarySidebar ref="primarySidebarRef"></PrimarySidebar>
   </div>
 </template>
 
@@ -10,17 +10,18 @@ import Vue, { Component } from "vue";
 import { mapActions, mapMutations, mapState } from "vuex";
 
 import adapter from "webrtc-adapter";
+import _ from "lodash";
 
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
-import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 import type { ISocketRTCConnectionMessage } from "~/api/modules/socket-io/handler";
 
 import MainContent from "~/components/chatroom/MainContent/index.vue";
 import PrimarySidebar from "~/components/chatroom/PrimarySidebar/index.vue";
 
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 import { makeToast, Properties } from "~/assets/utils/common";
 import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
@@ -41,78 +42,73 @@ export default Vue.extend({
 
   data() {
     return {
-      pcInstanceMap: {},
+      pcInstanceMap: {} as Record<string, RTCPeerConnection | null>,
     } as State;
   },
+
   computed: {
-    ...mapState("chatroom", [
-      "currentUserRole",
-      "currentRoomId",
-      "currentStep",
-      "currentStepProcess",
-    ] as Array<Properties<typeof ChatroomStore>>),
+    ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+    ...mapState("connection", ["currentStep", "currentStepProcess", "widgetNum"] as Array<
+      Properties<typeof ConnectionStore>
+    >),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CHATROOM_INIT_STATUS.INIT_SOCKET: {
+        case CONNECTION_INIT_STATUS.INIT_SOCKET: {
           if (!socketioService.socket?.connected) {
             socketioService.setupSocketConnection();
 
             socketioService.socket.on("connect", () => {
               if (this.currentUserRole) {
                 setTimeout(() => {
-                  this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
+                  this.setCurrentStep(CONNECTION_INIT_STATUS.CONFIRM_USER);
                 }, 0);
               } else {
                 makeToast("加载错误", "当前用户信息为空，请选择用户信息后再进入", "danger");
               }
             });
-
-            socketioService.socket.on("__join", this.onSocketJoin);
-            socketioService.socket.on("__offer", this.onSocketOffer);
-            socketioService.socket.on("__answer", this.onSocketAnswer);
-            socketioService.socket.on("__candidate", this.onSocketCandidate);
-          } else {
-            setTimeout(() => {
-              this.setCurrentStep(CHATROOM_INIT_STATUS.GET_USER_MEDIA);
-            }, 0);
           }
           break;
         }
-        case CHATROOM_INIT_STATUS.CONFIRM_USER: {
-          this.addCurrentStepProcess();
+        case CONNECTION_INIT_STATUS.CONFIRM_USER: {
+          socketioService.socket.on("__join", this.onSocketJoin);
+          socketioService.socket.on("__offer", this.onSocketOffer);
+          socketioService.socket.on("__answer", this.onSocketAnswer);
+          socketioService.socket.on("__candidate", this.onSocketCandidate);
+          socketioService.socket.on("__leave", this.onRemoteDisconnect);
 
-          const socketId = socketioService.socket.id;
-          const roomId = this.currentRoomId;
-          const userId = this.currentUserRole?._id;
-          this.chatroomEnter({ socketId, roomId, userId });
+          const connectionModel: Partial<IConnectionModel> = {
+            socketId: socketioService.socket.id,
+            roomId: this.currentRoomId,
+            userId: this.currentUserRole?._id,
+          };
 
-          socketioService.socket.emit("__join", {
-            socketId,
-            roomId,
-            userId,
+          (this.chatroomEnter(connectionModel) as Promise<void>)?.finally(() => {
+            socketioService.socket.emit("__join", connectionModel);
+            this.setCurrentStep(CONNECTION_INIT_STATUS.DONE);
           });
-
-          this.removeCurrentStepProcess();
-
-          setTimeout(() => {
-            if (this.currentStepProcess === 0) this.setCurrentStep(CHATROOM_INIT_STATUS.DONE);
-          }, 0);
           break;
         }
-        case CHATROOM_INIT_STATUS.DONE: {
-          socketioService.socket?.on("__leave", this.onRemoteDisconnect);
+        case CONNECTION_INIT_STATUS.DONE:
           break;
-        }
         default:
           break;
       }
     },
   },
 
+  created() {
+    this.$bus.$on("connection/addWidgetNum", this.addWidgetNum);
+    this.$bus.$on("connection/removeWidgetNum", this.removeWidgetNum);
+    this.$bus.$on("connection/start", this.onSocketJoin);
+  },
+
   beforeMount() {
+    window.__MY_STREAM__ = _.defaultsDeep({ $bus: this?.$bus }, window.__MY_STREAM__ || {});
     // console.log(adapter.browserDetails.browser);
     this.setCurrentRoomId(this.$route.params?.id);
 
@@ -122,112 +118,149 @@ export default Vue.extend({
       this.setCurrentUserRole(currentRoleObj);
     }
 
-    socketioService.socket?.on("__leave", this.onRemoteDisconnect);
-
     setTimeout(() => {
-      this.setCurrentStep(CHATROOM_INIT_STATUS.INIT_SOCKET);
+      this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
     }, 0);
   },
 
   beforeDestroy() {
     socketioService.disconnect();
     this.setCurrentRoomId(undefined);
-    this.setCurrentStep(CHATROOM_INIT_STATUS.PREPARED);
+    this.setCurrentStep(CONNECTION_INIT_STATUS.PREPARED);
+    this.resetWidgetNum();
+
+    this.$bus.$off("global/createChannel");
+    this.$bus.$off("global/removeChannel");
+    this.$bus.$off("global/start");
+    this.$bus.$off("connection/addWidgetNum");
+    this.$bus.$off("connection/removeWidgetNum");
+
+    const nullMap = {};
+    _.unset(window.__MY_STREAM__, "$pcInstanceMap");
+    this.setPcInstanceMap(nullMap);
   },
 
   methods: {
-    ...mapMutations({
+    ...(mapMutations({
       setCurrentUserRole: "chatroom/setCurrentUserRole",
       setCurrentRoomId: "chatroom/setCurrentRoomId",
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+    }) as {
+      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
     }),
-    ...mapActions({
+
+    ...(mapMutations({
+      setPcInstanceMap: "connection/setPcInstanceMap",
+      setCurrentStep: "connection/setCurrentStep",
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
+      addWidgetNum: "connection/addWidgetNum",
+      removeWidgetNum: "connection/removeWidgetNum",
+      resetWidgetNum: "connection/resetWidgetNum",
+    }) as {
+      [x in Properties<typeof ConnectionStore>]: ConnectionStore[x];
+    }),
+
+    ...(mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
+    }) as {
+      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
     }),
 
     onSocketJoin(args: IConnectionModel[]) {
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
 
-      args
-        .filter(item => item.socketId !== socketioService.socket.id)
-        .forEach(item => {
-          const socketId = item.socketId;
-          if (socketId === socketioService.socket.id) return;
+      Promise.all(
+        args
+          .filter(item => item.socketId !== socketioService.socket.id)
+          .map((item): Promise<void> => {
+            const socketId = item.socketId;
+            if (socketId === socketioService.socket.id) return Promise.resolve();
+            let pcInstance = pcInstanceMap?.[socketId];
 
-          const pcInstance = pcInstanceMap?.[socketId];
-          if (!pcInstance) {
-            const pcInstance = new window.RTCPeerConnection({
-              iceServers: iceServerPublicList.map(item => ({ urls: item })),
+            if (!(pcInstance?.connectionState === "connected")) {
+              pcInstance = new window.RTCPeerConnection({
+                iceServers: iceServerPublicList.map(item => ({ urls: item })),
+              });
+              pcInstance.onicecandidate = this.onRtcIceCandidate;
+              this.$set(this.pcInstanceMap, socketId, pcInstance);
+              this.setPcInstanceMap(this.pcInstanceMap);
+              window.__MY_STREAM__ = _.defaultsDeep(
+                { $pcInstanceMap: this.pcInstanceMap },
+                window.__MY_STREAM__ || {}
+              );
+            }
+            return new Promise((resolve, reject) => {
+              let readyWidgetNum = 0;
+              const internalResolve = () => {
+                readyWidgetNum++;
+                console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
+
+                if (readyWidgetNum >= this.widgetNum) return resolve();
+              };
+              this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
             });
-            pcInstance.onicecandidate = this.onRtcIceCandidate;
-            this.$set(this.pcInstanceMap, socketId, pcInstance);
-            (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
-              pcInstance,
-              socketId
-            );
-            (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(
-              pcInstance,
-              socketId
-            );
+          })
+      ).then(() => {
+        if (currentIndex >= 0) {
+          if (currentIndex === args.length - 1) {
+            const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
+            receiverList.forEach(socketId => {
+              this.createOffer(socketId);
+            });
           }
-        });
-      if (currentIndex >= 0) {
-        if (currentIndex === args.length - 1) {
-          const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
-
-          receiverList.forEach(socketId => {
-            this.createOffer(socketId);
-          });
         } else {
-          // const socketId = args[args.length - 1].socketId;
-          // this.createOffer(socketId);
+          makeToast("连接发生错误", "与后端数据库连接异常", "danger");
         }
-      } else {
-        args.forEach(item => {
-          this.createOffer(item.socketId);
-        });
-      }
+      });
     },
 
     onSocketOffer(args: ISocketRTCConnectionMessage) {
       console.log("on-offer");
 
       const { data, from } = args;
-      const pcInstance: RTCPeerConnection =
-        this.pcInstanceMap?.[from] ||
-        new window.RTCPeerConnection({
-          iceServers: iceServerPublicList.map(item => ({ urls: item })),
-        });
+      const pcInstance: RTCPeerConnection = new window.RTCPeerConnection({
+        iceServers: iceServerPublicList.map(item => ({ urls: item })),
+      });
+
       pcInstance.onicecandidate = this.onRtcIceCandidate;
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));
 
-      if (pcInstance !== this.pcInstanceMap[from]) {
-        (this.$refs.mainContentRef as InstanceType<typeof MainContent>).addLocalChannelToPeer(
-          pcInstance,
-          from
-        );
-        (this.$refs.primarySidebarRef as InstanceType<any>).addLocalChannelToPeer(pcInstance, from);
-        this.$set(this.pcInstanceMap, from, pcInstance);
-      }
-
-      // 创建应答
-      pcInstance
-        .createAnswer?.({
-          offerToReceiveVideo: true,
-          offerToReceiveAudio: true,
-        })
-        .then(sdp => {
-          pcInstance.setLocalDescription(sdp);
-          socketioService.socket.emit("__answer", {
-            to: from,
-            data: JSON.stringify(sdp),
-            from: socketioService.socket.id,
-            roomId: this.currentRoomId,
-          } as { to: string } & ISocketRTCConnectionMessage);
-        });
+      new Promise<void>((resolve, reject) => {
+        if (pcInstance !== this.pcInstanceMap[from]) {
+          this.$set(this.pcInstanceMap, from, pcInstance);
+          this.setPcInstanceMap(this.pcInstanceMap);
+          window.__MY_STREAM__ = _.defaultsDeep(
+            { $pcInstanceMap: this.pcInstanceMap },
+            window.__MY_STREAM__ || {}
+          );
+          let readyWidgetNum = 0;
+          const internalResolve = () => {
+            readyWidgetNum++;
+            console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
+            if (readyWidgetNum >= this.widgetNum) return resolve();
+          };
+          this.$bus.$emit("global/createChannel", pcInstance, from, internalResolve);
+        } else {
+          return resolve();
+        }
+      }).then(() => {
+        // 创建应答
+        pcInstance
+          .createAnswer?.({
+            offerToReceiveVideo: true,
+            offerToReceiveAudio: true,
+          })
+          .then(sdp => {
+            pcInstance.setLocalDescription(sdp);
+            socketioService.socket.emit("__answer", {
+              to: from,
+              data: JSON.stringify(sdp),
+              from: socketioService.socket.id,
+              roomId: this.currentRoomId,
+            } as { to: string } & ISocketRTCConnectionMessage);
+          });
+      });
     },
 
     onSocketAnswer(args: { to: string } & ISocketRTCConnectionMessage) {
@@ -258,6 +291,8 @@ export default Vue.extend({
     },
 
     createOffer(socketId: string) {
+      console.log("create-offer");
+
       const pcInstance: RTCPeerConnection = this.pcInstanceMap?.[socketId] || ({} as any);
       pcInstance
         .createOffer?.({
@@ -278,10 +313,7 @@ export default Vue.extend({
     onRemoteDisconnect(args: { from: string }) {
       this.pcInstanceMap[args.from]?.close();
       this.$delete(this.pcInstanceMap, args.from);
-      (this.$refs.mainContentRef as InstanceType<typeof MainContent>).removeLocalChannelFromPeer(
-        args
-      );
-      (this.$refs.primarySidebarRef as InstanceType<any>).removeLocalStreamToPeer(args);
+      this.$bus.$emit("global/removeChannel", args);
     },
   },
 });

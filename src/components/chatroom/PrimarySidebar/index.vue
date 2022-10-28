@@ -1,50 +1,103 @@
 <template>
-  <div class="primary-sidebar-container">
-    <TextChatbox ref="textChatboxRef" :pc-instance-map="pcInstanceMap" />
-  </div>
+  <VueResizable
+    class="primary-sidebar-resizable"
+    :width="width"
+    :active="['l']"
+    :disable-attributes="['l', 't', 'h']"
+    @resize:move="resizeHandler"
+  >
+    <div class="primary-sidebar-container">
+      <TextChatbox ref="textChatboxRef" />
+    </div>
+  </VueResizable>
 </template>
 
-<script lang="ts" setup>
-import { Component, Prop, Vue } from "vue-property-decorator";
-import {
-  onBeforeMount,
-  onMounted,
-  onUnmounted,
-  ref,
-  reactive,
-  PropType,
-} from "@nuxtjs/composition-api";
+<script lang="ts">
+import Vue, { Component } from "vue";
+import { mapMutations, mapState } from "vuex";
 
-import { defineProps } from "@vue/runtime-dom";
+import VueResizable from "vue-resizable";
 import TextChatbox from "./widgets/TextChatbox.vue";
 
-const textChatboxRef = ref<InstanceType<typeof TextChatbox> | null>(null);
+import ChatroomStore from "~/store/chatroom";
 
-defineProps<{
-  pcInstanceMap: Record<string, RTCPeerConnection | null>;
-}>();
+import { Properties } from "~/assets/utils/common";
 
-const addLocalChannelToPeer = (pcInstance: RTCPeerConnection, receiveSocketId: string) => {
-  textChatboxRef.value?.createDataChannel(pcInstance, receiveSocketId);
-};
+export interface IPrimarySidebarState {
+  width: number;
+}
 
-const removeLocalChannelFromPeer = (args: { from: string }) => {
-  textChatboxRef.value?.removeDataChannel(args);
-};
+type State = IPrimarySidebarState;
 
-defineExpose({
-  addLocalChannelToPeer,
-  removeLocalChannelFromPeer,
+export default Vue.extend({
+  components: {
+    VueResizable,
+    TextChatbox,
+  } as Record<string, Component>,
+
+  data() {
+    return {
+      width: 360,
+    } as State;
+  },
+
+  computed: {
+    ...mapState("chatroom", ["currentRoomId", "currentUserRole"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+  },
+
+  methods: {
+    ...mapMutations({
+      addCurrentStepProcess: "connection/addCurrentStepProcess",
+      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
+    }),
+
+    resizeHandler(data: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      eventName: string;
+    }) {
+      this.width = data.width;
+    },
+  },
 });
-
-onMounted(() => {});
 </script>
 
 <style lang="less" scoped>
-.primary-sidebar-container {
-  @apply h-full;
+@import "@/assets/styles/mixin.less";
 
-  width: 320px;
+.primary-sidebar-resizable {
+  width: 360px;
+
+  ::v-deep {
+    .resizable-l {
+      cursor: col-resize;
+
+      &::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        height: 100%;
+        width: 0;
+        transform: translateX(-50%);
+        transition: box-shadow 0.3s;
+      }
+
+      &:hover {
+        &::after {
+          box-shadow: 0 0 0 2.5px @primary;
+        }
+      }
+    }
+  }
+}
+
+.primary-sidebar-container {
+  @apply w-full h-full;
+
   display: flex;
 }
 </style>

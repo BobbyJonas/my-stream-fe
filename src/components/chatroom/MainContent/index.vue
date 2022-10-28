@@ -1,25 +1,75 @@
 <template>
-  <b-overlay :show="!initReady" variant="light" :opacity="0.65" :style="{ width: '100%' }">
+  <b-overlay
+    class="primary-content-overlay"
+    :show="!initReady"
+    variant="light"
+    :opacity="0.65"
+    :style="{ width: '100%' }"
+  >
     <div class="primary-content-container">
       <div class="video-chat-container">
+        <aside role="navigation" class="toolbox">
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="刷新"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onRefreshConnection"
+          >
+            <b-icon class="btn-icon" icon="slash-square" />
+          </b-button>
+          <span class="separator" />
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="语音开启"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+          >
+            <b-icon class="btn-icon" icon="mic-fill" />
+          </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            :title="videoSource === 'webcam' ? '切换屏幕分享' : '切换到摄像头'"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onSwitchMediaSource"
+          >
+            <b-icon v-if="videoSource === 'webcam'" class="btn-icon" icon="window" />
+            <b-icon v-if="videoSource === 'screen'" class="btn-icon" icon="camera-video" />
+          </b-button>
+          <span class="separator" />
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="结束通话"
+            class="operation-btn"
+            variant="danger"
+            pill
+          >
+            <b-icon class="btn-icon" icon="telephone-fill" />
+          </b-button>
+        </aside>
         <video
           ref="localVideoRef"
-          class="video-container local-video"
+          :class="['video-container', { 'local-video': videoSource === 'webcam' }]"
           muted
           autoplay
-          controlsList="nodownload"
           playsinline
           disablePictureInPicture
           @contextmenu="() => false"
         />
 
         <video
-          v-for="item in Object.keys(pcInstanceMap)"
+          v-for="item in Object.keys(remoteStreamList)"
           :ref="`remoteVideoRef_${item}`"
           :key="item"
           class="video-container"
           autoplay
           playsinline
+          disablePictureInPicture
+          @contextmenu="() => false"
         />
       </div>
     </div>
@@ -29,15 +79,16 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
-import type { AxiosInstance } from "axios";
-import { PropType, Ref, ref } from "@nuxtjs/composition-api";
+import { Ref, ref } from "@nuxtjs/composition-api";
 
 import socketioService from "~/assets/services/socket-io-client";
 
-import type { IUserModel } from "~/api/modules/mongodb/models/user";
-import ChatroomStore, { CHATROOM_INIT_STATUS } from "~/store/chatroom";
+import ChatroomStore from "~/store/chatroom";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
+
 import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
+import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
 export interface IMainContentState {
   userMediaAvailable: boolean;
@@ -50,13 +101,6 @@ type State = IMainContentState;
 export default Vue.extend({
   components: {} as Record<string, Component>,
 
-  props: {
-    pcInstanceMap: {
-      required: true,
-      type: Object as PropType<Record<string, RTCPeerConnection | null>>,
-    },
-  },
-
   data() {
     return {
       userMediaAvailable: false,
@@ -65,58 +109,19 @@ export default Vue.extend({
   },
 
   computed: {
-    ...mapState("chatroom", [
-      "currentUserRole",
-      "currentRoomId",
-      "currentStep",
-      "currentStepProcess",
-      "initReady",
-    ] as Array<Properties<typeof ChatroomStore>>),
+    ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
+      Properties<typeof ChatroomStore>
+    >),
+    ...mapState("connection", ["pcInstanceMap", "videoSource", "currentStep", "initReady"] as Array<
+      Properties<typeof ConnectionStore>
+    >),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CHATROOM_INIT_STATUS.GET_USER_MEDIA: {
-          this.addCurrentStepProcess();
-
-          const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
-          if (localVideoControl) {
-            window.navigator.mediaDevices
-              .getUserMedia({
-                video: {
-                  width: {
-                    min: userMediaVideoTrackConstraints["360p"].width,
-                    max: userMediaVideoTrackConstraints["1080p"].width,
-                  },
-                  height: {
-                    min: userMediaVideoTrackConstraints["360p"].height,
-                    max: userMediaVideoTrackConstraints["1080p"].height,
-                  },
-                },
-                audio: true,
-              })
-              .then(stream => {
-                this.userMediaAvailable = true;
-                this.localStreamRef = ref(stream);
-                localVideoControl.srcObject = stream;
-
-                this.removeCurrentStepProcess();
-                if (this.currentStepProcess === 0) {
-                  this.setCurrentStep(CHATROOM_INIT_STATUS.CONFIRM_USER);
-                }
-              })
-              .catch(err => {
-                this.userMediaAvailable = false;
-                makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
-                // eslint-disable-next-line no-console
-                console.error("访问用户媒体设备失败:", err.message);
-              });
-          }
-          break;
-        }
-        case CHATROOM_INIT_STATUS.DONE: {
-          if (this.currentStepProcess === 0) this.setInitReady(true);
+        case CONNECTION_INIT_STATUS.DONE: {
+          this.setInitReady(true);
           break;
         }
         default:
@@ -126,38 +131,104 @@ export default Vue.extend({
   },
 
   created() {
+    this.$bus.$on("global/createChannel", this.addLocalChannelToPeer);
+    this.$bus.$on("global/removeChannel", this.removeLocalChannelFromPeer);
+
+    this.$bus.$emit("connection/addWidgetNum");
+  },
+
+  mounted() {
     this.localStreamRef = ref<MediaStream | null>(null);
+    this.getLocalMedia();
+  },
+
+  beforeDestroy() {
+    this.$bus.$emit("connection/removeWidgetNum");
   },
 
   methods: {
     ...mapMutations({
-      setInitReady: "chatroom/setInitReady",
-      setCurrentStep: "chatroom/setCurrentStep",
-      addCurrentStepProcess: "chatroom/addCurrentStepProcess",
-      removeCurrentStepProcess: "chatroom/removeCurrentStepProcess",
+      setInitReady: "connection/setInitReady",
+      setVideoSource: "connection/setVideoSource",
     }),
     ...mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
     }),
 
     removeLocalChannelFromPeer({ from }: { from: string }): void {
-      this.pcInstanceMap[from]?.close();
-      this.$delete(this.pcInstanceMap, from);
       this.$delete(this.remoteStreamList, from);
     },
 
-    addLocalChannelToPeer(pcInstance: RTCPeerConnection, receiveSocketId: string): void {
-      const localStream = this.localStreamRef.value;
+    getLocalCameraMedia(): Promise<MediaStream> {
+      return new Promise((resolve, reject) => {
+        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        window.navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              width: {
+                min: userMediaVideoTrackConstraints["360p"].width,
+                max: userMediaVideoTrackConstraints["1080p"].width,
+              },
+              height: {
+                min: userMediaVideoTrackConstraints["360p"].height,
+                max: userMediaVideoTrackConstraints["1080p"].height,
+              },
+            },
+            audio: true,
+          })
+          .then(stream => {
+            resolve(stream);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      });
+    },
 
-      if (this.localStreamRef.value) {
-        localStream?.getTracks().forEach(track => {
-          pcInstance.addTrack(track, localStream);
+    getLocalDisplayMedia(): Promise<MediaStream> {
+      return new Promise((resolve, reject) => {
+        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        window.navigator.mediaDevices
+          .getDisplayMedia({
+            video: true,
+            audio: true,
+          })
+          .then(stream => {
+            resolve(stream);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      });
+    },
+
+    getLocalMedia(): Promise<void> {
+      const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
+      if (localVideoControl) localVideoControl.srcObject = null;
+
+      const getLocalMedia =
+        (this.videoSource as "webcam" | "screen") === "webcam"
+          ? this.getLocalCameraMedia
+          : this.getLocalDisplayMedia;
+
+      return getLocalMedia()
+        .then(stream => {
+          this.localStreamRef = ref(stream);
+          if (localVideoControl) localVideoControl.srcObject = stream;
+        })
+        .catch(err => {
+          makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
         });
-      } else {
-        makeToast("错误", "本地视频访问失败", "danger");
-      }
+    },
 
-      pcInstance.ontrack = e => {
+    addLocalChannelToPeer(
+      pcInstance: RTCPeerConnection,
+      receiveSocketId: string,
+      next: () => void
+    ): void {
+      pcInstance.ontrack = (e: RTCTrackEvent): void => {
+        console.log("on-track");
+
         this.$set(this.remoteStreamList, receiveSocketId, e.streams[0]);
         this.$nextTick(() => {
           let remoteVideoContainer = this.$refs[
@@ -170,18 +241,77 @@ export default Vue.extend({
           }
         });
       };
+
+      const getLocalMedia =
+        (this.videoSource as "webcam" | "screen") === "webcam"
+          ? this.getLocalCameraMedia
+          : this.getLocalDisplayMedia;
+
+      getLocalMedia()
+        .then(stream => {
+          stream?.getTracks().forEach(track => {
+            pcInstance.addTrack(track, stream);
+          });
+        })
+        .catch(() => {
+          makeToast("错误", "本地视频访问失败", "danger");
+        })
+        .finally(() => {
+          next();
+        });
+    },
+
+    disconnect(): void {
+      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+      const socketIdList = Object.keys(pcInstanceMap).map(
+        item => ({ socketId: item } as IConnectionModel)
+      );
+      socketIdList.forEach(item => {
+        pcInstanceMap[item.socketId]?.close();
+      });
+    },
+
+    reconnect(): void {
+      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+      const socketIdList = Object.keys(pcInstanceMap).map(
+        item => ({ socketId: item } as IConnectionModel)
+      );
+      this.$bus.$emit("connection/start", [
+        ...socketIdList,
+        { socketId: socketioService.socket.id } as IConnectionModel,
+      ]);
+    },
+
+    onRefreshConnection(): void {
+      this.disconnect();
+      this.reconnect();
+    },
+
+    onSwitchMediaSource(): void {
+      this.disconnect();
+      this.localStreamRef = ref(null);
+      this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
+      this.getLocalMedia().then(res => {
+        this.reconnect();
+      });
     },
   },
 });
 </script>
 
 <style lang="less" scoped>
-.primary-content-container {
+@import "@/assets/styles/mixin.less";
+
+.primary-content-overlay {
   flex: 1;
+}
+
+.primary-content-container {
   position: relative;
   height: 100%;
 
   .video-chat-container {
+    position: relative;
     display: flex;
     height: 100%;
     width: 100%;
@@ -198,6 +328,53 @@ export default Vue.extend({
 
     .local-video {
       transform: rotateY(180deg);
+    }
+
+    .toolbox {
+      position: absolute;
+      bottom: 58px;
+      left: 50%;
+      z-index: 9;
+      padding: 8px;
+      transform: translate(-50%);
+      border-radius: @border-radius-infinite;
+      background-color: @text-color-base;
+      white-space: nowrap;
+      opacity: 0.75;
+      transition: opacity 0.3s;
+
+      .operation-btn {
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        text-align: center;
+        font-size: 16px;
+        color: whitesmoke;
+
+        &:not(:last-child) {
+          margin-right: 4px;
+        }
+
+        .btn-icon {
+          vertical-align: 2px;
+        }
+      }
+
+      .separator {
+        display: inline-block;
+        width: 1px;
+        height: 28px;
+        margin-right: 6px;
+        margin-left: 2px;
+        background-color: rgba(@text-color-light, 0.5);
+        vertical-align: middle;
+      }
+    }
+
+    &:hover {
+      .toolbox {
+        opacity: 1;
+      }
     }
   }
 }
