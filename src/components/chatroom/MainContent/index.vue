@@ -10,17 +10,47 @@
       <div class="video-chat-container">
         <aside role="navigation" class="toolbox">
           <b-button
-            v-b-tooltip.hover.v-secondary
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="刷新"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onDemoTest"
+          >
+          </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="刷新"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onRefreshConnection"
+          >
+            <b-icon class="btn-icon" icon="slash-square" />
+          </b-button>
+          <span class="separator" />
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="语音开启"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+          >
+            <b-icon class="btn-icon" icon="mic-fill" />
+          </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
             title="切换屏幕分享"
             class="operation-btn"
             variant="outline-secondary"
             pill
           >
             <b-icon class="btn-icon" icon="window" />
-            <!-- <b-icon class="btn-icon" icon="webcam" /> -->
+            <!-- <b-icon class="btn-icon" icon="camera-video" /> -->
           </b-button>
+          <span class="separator" />
           <b-button
-            v-b-tooltip.hover.v-secondary
+            v-b-tooltip.hover.v-secondary.noninteractive
             title="结束通话"
             class="operation-btn"
             variant="danger"
@@ -87,52 +117,17 @@ export default Vue.extend({
     ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
       Properties<typeof ChatroomStore>
     >),
-    ...mapState("connection", ["currentStep", "currentStepProcess", "initReady"] as Array<
-      Properties<typeof ConnectionStore>
-    >),
+    ...mapState("connection", [
+      "pcInstanceMap",
+      "currentStep",
+      "currentStepProcess",
+      "initReady",
+    ] as Array<Properties<typeof ConnectionStore>>),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
-        case CONNECTION_INIT_STATUS.GET_USER_MEDIA: {
-          this.addCurrentStepProcess();
-
-          const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
-          if (localVideoControl) {
-            window.navigator.mediaDevices
-              .getUserMedia({
-                video: {
-                  width: {
-                    min: userMediaVideoTrackConstraints["360p"].width,
-                    max: userMediaVideoTrackConstraints["1080p"].width,
-                  },
-                  height: {
-                    min: userMediaVideoTrackConstraints["360p"].height,
-                    max: userMediaVideoTrackConstraints["1080p"].height,
-                  },
-                },
-                audio: true,
-              })
-              .then(stream => {
-                this.userMediaAvailable = true;
-                this.localStreamRef = ref(stream);
-                localVideoControl.srcObject = stream;
-
-                this.removeCurrentStepProcess();
-                if (this.currentStepProcess === 0) {
-                  this.setCurrentStep(CONNECTION_INIT_STATUS.CONFIRM_USER);
-                }
-              })
-              .catch(err => {
-                this.userMediaAvailable = false;
-                makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
-                // eslint-disable-next-line no-console
-                console.error("访问用户媒体设备失败:", err.message);
-              });
-          }
-          break;
-        }
         case CONNECTION_INIT_STATUS.DONE: {
           if (this.currentStepProcess === 0) this.setInitReady(true);
           break;
@@ -143,10 +138,28 @@ export default Vue.extend({
     },
   },
 
+  created() {
+    this.$bus.$on("global/createChannel", this.addLocalChannelToPeer);
+    this.$bus.$on("global/removeChannel", this.removeLocalChannelFromPeer);
+
+    this.$bus.$emit("connection/addWidgetNum");
+  },
+
   mounted() {
     this.localStreamRef = ref<MediaStream | null>(null);
-    this.$bus.$on("global/join", this.addLocalChannelToPeer);
-    this.$bus.$on("global/leave", this.removeLocalChannelFromPeer);
+    this.getLocalCameraMedia()
+      .then(stream => {
+        this.localStreamRef = ref(stream);
+        const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
+        if (localVideoControl) localVideoControl.srcObject = stream;
+      })
+      .catch(err => {
+        makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
+      });
+  },
+
+  beforeDestroy() {
+    this.$bus.$emit("connection/removeWidgetNum");
   },
 
   methods: {
@@ -164,18 +177,40 @@ export default Vue.extend({
       this.$delete(this.remoteStreamList, from);
     },
 
-    addLocalChannelToPeer(pcInstance: RTCPeerConnection, receiveSocketId: string): void {
-      const localStream = this.localStreamRef.value;
+    getLocalCameraMedia(): Promise<MediaStream> {
+      return new Promise((resolve, reject) => {
+        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        window.navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              width: {
+                min: userMediaVideoTrackConstraints["360p"].width,
+                max: userMediaVideoTrackConstraints["1080p"].width,
+              },
+              height: {
+                min: userMediaVideoTrackConstraints["360p"].height,
+                max: userMediaVideoTrackConstraints["1080p"].height,
+              },
+            },
+            audio: true,
+          })
+          .then(stream => {
+            resolve(stream);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      });
+    },
 
-      if (this.localStreamRef.value) {
-        localStream?.getTracks().forEach(track => {
-          pcInstance.addTrack(track, localStream);
-        });
-      } else {
-        makeToast("错误", "本地视频访问失败", "danger");
-      }
+    addLocalChannelToPeer(
+      pcInstance: RTCPeerConnection,
+      receiveSocketId: string,
+      next: () => void
+    ): void {
+      pcInstance.ontrack = (e: RTCTrackEvent): void => {
+        console.log("on-track");
 
-      pcInstance.ontrack = e => {
         this.$set(this.remoteStreamList, receiveSocketId, e.streams[0]);
         this.$nextTick(() => {
           let remoteVideoContainer = this.$refs[
@@ -188,6 +223,32 @@ export default Vue.extend({
           }
         });
       };
+
+      this.getLocalCameraMedia()
+        .then(stream => {
+          stream?.getTracks().forEach(track => {
+            pcInstance.addTrack(track, stream);
+          });
+        })
+        .catch(() => {
+          makeToast("错误", "本地视频访问失败", "danger");
+        })
+        .finally(() => {
+          next();
+        });
+    },
+
+    onRefreshConnection(): void {
+      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+      const socketIdList = Object.keys(pcInstanceMap);
+      socketIdList.forEach(id => {
+        pcInstanceMap[id]?.close();
+      });
+      this.$bus.$emit("connection/start", socketIdList);
+    },
+
+    onDemoTest(): void {
+      console.log(this.remoteStreamList);
     },
   },
 });
@@ -226,20 +287,21 @@ export default Vue.extend({
 
     .toolbox {
       position: absolute;
-      bottom: 64px;
+      bottom: 58px;
       left: 50%;
       z-index: 9;
       padding: 8px;
       transform: translate(-50%);
       border-radius: @border-radius-infinite;
       background-color: @text-color-base;
+      white-space: nowrap;
       opacity: 0.75;
       transition: opacity 0.3s;
 
       .operation-btn {
-        width: 42px;
-        height: 42px;
-        line-height: 42px;
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
         text-align: center;
         font-size: 16px;
         color: whitesmoke;
@@ -251,6 +313,16 @@ export default Vue.extend({
         .btn-icon {
           vertical-align: 2px;
         }
+      }
+
+      .separator {
+        display: inline-block;
+        width: 1px;
+        height: 28px;
+        margin-right: 6px;
+        margin-left: 2px;
+        background-color: rgba(@text-color-light, 0.5);
+        vertical-align: middle;
       }
     }
 

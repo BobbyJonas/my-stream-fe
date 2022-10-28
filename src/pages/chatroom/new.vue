@@ -71,7 +71,7 @@
             role="button"
             :tabindex="0"
             :class="['card-item', { 'card-item--active': selectRoleIndex === index }]"
-            @keypress="$event.key === 'Enter' && onRoleCardClick(index)"
+            @keypress.enter="onRoleCardClick(index)"
             @click="onRoleCardClick(index)"
           >
             <div class="card-avatar"></div>
@@ -81,7 +81,7 @@
             class="card-item card-add"
             role="button"
             :tabindex="0"
-            @keypress="$event.key === 'Enter' && onAddCardClick()"
+            @keypress.enter="onAddCardClick()"
             @click="onAddCardClick()"
           >
             <b-icon class="icon-plus" icon="plus-circle" />

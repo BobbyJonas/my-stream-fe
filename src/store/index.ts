@@ -3,5 +3,6 @@ import { initializeStores } from "~/assets/utils/storeAccessor";
 
 const initializer = (store: Store<any>) => initializeStores(store);
 
+// export const strict = false;
 export const plugins = [initializer];
 export * from "~/assets/utils/storeAccessor";

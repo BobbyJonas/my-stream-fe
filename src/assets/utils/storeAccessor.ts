@@ -1,5 +1,5 @@
 /* eslint-disable import/no-mutable-exports */
-import { Store } from "vuex";
+import type { Store } from "vuex";
 import { getModule, config } from "vuex-module-decorators";
 
 import Todo from "~/store/todo";

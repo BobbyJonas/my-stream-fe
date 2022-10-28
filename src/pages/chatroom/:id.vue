@@ -10,6 +10,7 @@ import Vue, { Component } from "vue";
 import { mapActions, mapMutations, mapState } from "vuex";
 
 import adapter from "webrtc-adapter";
+import _ from "lodash";
 
 import { iceServerPublicList } from "./utils";
 import socketioService from "~/assets/services/socket-io-client";
@@ -48,7 +49,7 @@ export default Vue.extend({
     ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
       Properties<typeof ChatroomStore>
     >),
-    ...mapState("connection", ["currentStep", "currentStepProcess"] as Array<
+    ...mapState("connection", ["currentStep", "currentStepProcess", "widgetNum"] as Array<
       Properties<typeof ConnectionStore>
     >),
   },
@@ -63,56 +64,50 @@ export default Vue.extend({
             socketioService.socket.on("connect", () => {
               if (this.currentUserRole) {
                 setTimeout(() => {
-                  this.setCurrentStep(CONNECTION_INIT_STATUS.GET_USER_MEDIA);
+                  this.setCurrentStep(CONNECTION_INIT_STATUS.CONFIRM_USER);
                 }, 0);
               } else {
                 makeToast("加载错误", "当前用户信息为空，请选择用户信息后再进入", "danger");
               }
             });
-
-            socketioService.socket.on("__join", this.onSocketJoin);
-            socketioService.socket.on("__offer", this.onSocketOffer);
-            socketioService.socket.on("__answer", this.onSocketAnswer);
-            socketioService.socket.on("__candidate", this.onSocketCandidate);
-          } else {
-            setTimeout(() => {
-              this.setCurrentStep(CONNECTION_INIT_STATUS.GET_USER_MEDIA);
-            }, 0);
           }
           break;
         }
         case CONNECTION_INIT_STATUS.CONFIRM_USER: {
-          this.addCurrentStepProcess();
+          socketioService.socket.on("__join", this.onSocketJoin);
+          socketioService.socket.on("__offer", this.onSocketOffer);
+          socketioService.socket.on("__answer", this.onSocketAnswer);
+          socketioService.socket.on("__candidate", this.onSocketCandidate);
+          socketioService.socket.on("__leave", this.onRemoteDisconnect);
 
-          const socketId = socketioService.socket.id;
-          const roomId = this.currentRoomId;
-          const userId = this.currentUserRole?._id;
-          this.chatroomEnter({ socketId, roomId, userId });
+          const connectionModel: Partial<IConnectionModel> = {
+            socketId: socketioService.socket.id,
+            roomId: this.currentRoomId,
+            userId: this.currentUserRole?._id,
+          };
 
-          socketioService.socket.emit("__join", {
-            socketId,
-            roomId,
-            userId,
+          (this.chatroomEnter(connectionModel) as Promise<void>)?.finally(() => {
+            socketioService.socket.emit("__join", connectionModel);
+            this.setCurrentStep(CONNECTION_INIT_STATUS.DONE);
           });
-
-          this.removeCurrentStepProcess();
-
-          setTimeout(() => {
-            if (this.currentStepProcess === 0) this.setCurrentStep(CONNECTION_INIT_STATUS.DONE);
-          }, 0);
           break;
         }
-        case CONNECTION_INIT_STATUS.DONE: {
-          socketioService.socket?.on("__leave", this.onRemoteDisconnect);
+        case CONNECTION_INIT_STATUS.DONE:
           break;
-        }
         default:
           break;
       }
     },
   },
 
+  created() {
+    this.$bus.$on("connection/addWidgetNum", this.addWidgetNum);
+    this.$bus.$on("connection/removeWidgetNum", this.removeWidgetNum);
+    this.$bus.$on("connection/start", this.onSocketJoin);
+  },
+
   beforeMount() {
+    window.__MY_STREAM__ = _.defaultsDeep({ $bus: this?.$bus }, window.__MY_STREAM__ || {});
     // console.log(adapter.browserDetails.browser);
     this.setCurrentRoomId(this.$route.params?.id);
 
@@ -121,8 +116,6 @@ export default Vue.extend({
       const currentRoleObj: IUserModel = JSON.parse(storageCurrentRole);
       this.setCurrentUserRole(currentRoleObj);
     }
-
-    socketioService.socket?.on("__leave", this.onRemoteDisconnect);
 
     setTimeout(() => {
       this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
@@ -133,8 +126,17 @@ export default Vue.extend({
     socketioService.disconnect();
     this.setCurrentRoomId(undefined);
     this.setCurrentStep(CONNECTION_INIT_STATUS.PREPARED);
-    this.$bus.$off("global/join");
-    this.$bus.$off("global/leave");
+    this.resetWidgetNum();
+
+    this.$bus.$off("global/createChannel");
+    this.$bus.$off("global/removeChannel");
+    this.$bus.$off("global/start");
+    this.$bus.$off("connection/addWidgetNum");
+    this.$bus.$off("connection/removeWidgetNum");
+
+    const nullMap = {};
+    _.unset(window.__MY_STREAM__, "$pcInstanceMap");
+    this.setPcInstanceMap(nullMap);
   },
 
   methods: {
@@ -150,6 +152,9 @@ export default Vue.extend({
       setCurrentStep: "connection/setCurrentStep",
       addCurrentStepProcess: "connection/addCurrentStepProcess",
       removeCurrentStepProcess: "connection/removeCurrentStepProcess",
+      addWidgetNum: "connection/addWidgetNum",
+      removeWidgetNum: "connection/removeWidgetNum",
+      resetWidgetNum: "connection/resetWidgetNum",
     }) as {
       [x in Properties<typeof ConnectionStore>]: ConnectionStore[x];
     }),
@@ -164,39 +169,53 @@ export default Vue.extend({
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
 
-      args
-        .filter(item => item.socketId !== socketioService.socket.id)
-        .forEach(item => {
-          const socketId = item.socketId;
-          if (socketId === socketioService.socket.id) return;
+      Promise.all(
+        args
+          .filter(item => item.socketId !== socketioService.socket.id)
+          .map((item): Promise<void> => {
+            const socketId = item.socketId;
+            if (socketId === socketioService.socket.id) return Promise.resolve();
+            let pcInstance = pcInstanceMap?.[socketId];
+            if (!pcInstance) {
+              pcInstance = new window.RTCPeerConnection({
+                iceServers: iceServerPublicList.map(item => ({ urls: item })),
+              });
+              pcInstance.onicecandidate = this.onRtcIceCandidate;
+              this.$set(this.pcInstanceMap, socketId, pcInstance);
+              this.setPcInstanceMap(this.pcInstanceMap);
+              window.__MY_STREAM__ = _.defaultsDeep(
+                { $pcInstanceMap: this.pcInstanceMap },
+                window.__MY_STREAM__ || {}
+              );
+            }
+            return new Promise((resolve, reject) => {
+              let readyWidgetNum = 0;
+              const internalResolve = () => {
+                readyWidgetNum++;
+                console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
 
-          const pcInstance = pcInstanceMap?.[socketId];
-          if (!pcInstance) {
-            const pcInstance = new window.RTCPeerConnection({
-              iceServers: iceServerPublicList.map(item => ({ urls: item })),
+                if (readyWidgetNum >= this.widgetNum) return resolve();
+              };
+              this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
             });
-            pcInstance.onicecandidate = this.onRtcIceCandidate;
-            this.$set(this.pcInstanceMap, socketId, pcInstance);
-            this.$bus.$emit("global/join", pcInstance, socketId);
-            this.setPcInstanceMap(this.pcInstanceMap);
+          })
+      ).then(() => {
+        if (currentIndex >= 0) {
+          if (currentIndex === args.length - 1) {
+            const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
+            receiverList.forEach(socketId => {
+              this.createOffer(socketId);
+            });
+          } else {
+            // const socketId = args[args.length - 1].socketId;
+            // this.createOffer(socketId);
           }
-        });
-      if (currentIndex >= 0) {
-        if (currentIndex === args.length - 1) {
-          const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
-
-          receiverList.forEach(socketId => {
-            this.createOffer(socketId);
-          });
         } else {
-          // const socketId = args[args.length - 1].socketId;
-          // this.createOffer(socketId);
+          args.forEach(item => {
+            this.createOffer(item.socketId);
+          });
         }
-      } else {
-        args.forEach(item => {
-          this.createOffer(item.socketId);
-        });
-      }
+      });
     },
 
     onSocketOffer(args: ISocketRTCConnectionMessage) {
@@ -208,29 +227,45 @@ export default Vue.extend({
         new window.RTCPeerConnection({
           iceServers: iceServerPublicList.map(item => ({ urls: item })),
         });
+
       pcInstance.onicecandidate = this.onRtcIceCandidate;
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));
 
-      if (pcInstance !== this.pcInstanceMap[from]) {
-        this.$bus.$emit("global/join", pcInstance, from);
-        this.$set(this.pcInstanceMap, from, pcInstance);
-      }
-
-      // 创建应答
-      pcInstance
-        .createAnswer?.({
-          offerToReceiveVideo: true,
-          offerToReceiveAudio: true,
-        })
-        .then(sdp => {
-          pcInstance.setLocalDescription(sdp);
-          socketioService.socket.emit("__answer", {
-            to: from,
-            data: JSON.stringify(sdp),
-            from: socketioService.socket.id,
-            roomId: this.currentRoomId,
-          } as { to: string } & ISocketRTCConnectionMessage);
-        });
+      new Promise<void>((resolve, reject) => {
+        if (pcInstance !== this.pcInstanceMap[from]) {
+          this.$set(this.pcInstanceMap, from, pcInstance);
+          this.setPcInstanceMap(this.pcInstanceMap);
+          window.__MY_STREAM__ = _.defaultsDeep(
+            { $pcInstanceMap: this.pcInstanceMap },
+            window.__MY_STREAM__ || {}
+          );
+          let readyWidgetNum = 0;
+          const internalResolve = () => {
+            readyWidgetNum++;
+            console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
+            if (readyWidgetNum >= this.widgetNum) return resolve();
+          };
+          this.$bus.$emit("global/createChannel", pcInstance, from, internalResolve);
+        } else {
+          return resolve();
+        }
+      }).then(() => {
+        // 创建应答
+        pcInstance
+          .createAnswer?.({
+            offerToReceiveVideo: true,
+            offerToReceiveAudio: true,
+          })
+          .then(sdp => {
+            pcInstance.setLocalDescription(sdp);
+            socketioService.socket.emit("__answer", {
+              to: from,
+              data: JSON.stringify(sdp),
+              from: socketioService.socket.id,
+              roomId: this.currentRoomId,
+            } as { to: string } & ISocketRTCConnectionMessage);
+          });
+      });
     },
 
     onSocketAnswer(args: { to: string } & ISocketRTCConnectionMessage) {
@@ -261,6 +296,8 @@ export default Vue.extend({
     },
 
     createOffer(socketId: string) {
+      console.log("create-offer");
+
       const pcInstance: RTCPeerConnection = this.pcInstanceMap?.[socketId] || ({} as any);
       pcInstance
         .createOffer?.({
@@ -281,7 +318,7 @@ export default Vue.extend({
     onRemoteDisconnect(args: { from: string }) {
       this.pcInstanceMap[args.from]?.close();
       this.$delete(this.pcInstanceMap, args.from);
-      this.$bus.$emit("global/leave", args);
+      this.$bus.$emit("global/removeChannel", args);
     },
   },
 });

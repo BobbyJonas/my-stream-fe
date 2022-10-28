@@ -112,9 +112,14 @@ export default Vue.extend({
     },
   },
 
-  mounted() {
-    this.$bus.$on("global/join", this.createDataChannel);
-    this.$bus.$on("global/leave", this.removeDataChannel);
+  created() {
+    this.$bus.$on("global/createChannel", this.createDataChannel);
+    this.$bus.$on("global/removeChannel", this.removeDataChannel);
+    this.$bus.$emit("connection/addWidgetNum");
+  },
+
+  beforeDestroy() {
+    this.$bus.$emit("connection/removeWidgetNum");
   },
 
   methods: {
@@ -124,7 +129,7 @@ export default Vue.extend({
       removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
 
-    createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string) {
+    createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string, next: () => void) {
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
       if (!currentDataChannel) {
         const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
@@ -139,6 +144,7 @@ export default Vue.extend({
       pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
         this.onRemoteChannelConnected(e, receiveSocketId);
       };
+      next();
     },
 
     removeDataChannel({ from }: { from: string }): void {

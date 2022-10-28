@@ -14,6 +14,8 @@ function createSocketHandler(socket: Socket, io: Server): void {
   socket.on("__join", (args: IConnectionModel) => {
     socket.join(args.roomId);
     getDbConnectionRecord({ roomId: args.roomId }).then(res => {
+      console.log(res.map(item => item.socketId));
+
       io.in(args.roomId).emit("__join", res);
     });
   });

@@ -3,9 +3,8 @@ import { Module, VuexModule, Mutation, Action, MutationAction } from "vuex-modul
 export enum CONNECTION_INIT_STATUS {
   "PREPARED" = 0,
   "INIT_SOCKET" = 1,
-  "GET_USER_MEDIA" = 2,
-  "CONFIRM_USER" = 3,
-  "DONE" = 4,
+  "CONFIRM_USER" = 2,
+  "DONE" = 3,
 }
 
 @Module({
@@ -14,9 +13,27 @@ export enum CONNECTION_INIT_STATUS {
 })
 export default class ConnectionStore extends VuexModule {
   public pcInstanceMap: Record<string, RTCPeerConnection | null> = {};
+
+  public widgetNum: number = 0;
+
   public currentStep: number = CONNECTION_INIT_STATUS.PREPARED;
   public currentStepProcess: number = 0;
   public initReady: boolean = false;
+
+  @Mutation
+  public addWidgetNum(): void {
+    this.widgetNum = this.widgetNum++;
+  }
+
+  @Mutation
+  public removeWidgetNum(): void {
+    this.widgetNum = this.widgetNum--;
+  }
+
+  @Mutation
+  public resetWidgetNum(): void {
+    this.widgetNum = 0;
+  }
 
   @Mutation
   public setCurrentStep(value: number): void {
