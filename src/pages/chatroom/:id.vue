@@ -42,9 +42,10 @@ export default Vue.extend({
 
   data() {
     return {
-      pcInstanceMap: {},
+      pcInstanceMap: {} as Record<string, RTCPeerConnection | null>,
     } as State;
   },
+
   computed: {
     ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
       Properties<typeof ChatroomStore>
@@ -168,6 +169,7 @@ export default Vue.extend({
     onSocketJoin(args: IConnectionModel[]) {
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+      console.log(currentIndex);
 
       Promise.all(
         args
@@ -176,7 +178,9 @@ export default Vue.extend({
             const socketId = item.socketId;
             if (socketId === socketioService.socket.id) return Promise.resolve();
             let pcInstance = pcInstanceMap?.[socketId];
-            if (!pcInstance) {
+            console.log(pcInstance);
+
+            if (!(pcInstance?.connectionState === "connected")) {
               pcInstance = new window.RTCPeerConnection({
                 iceServers: iceServerPublicList.map(item => ({ urls: item })),
               });
@@ -206,14 +210,9 @@ export default Vue.extend({
             receiverList.forEach(socketId => {
               this.createOffer(socketId);
             });
-          } else {
-            // const socketId = args[args.length - 1].socketId;
-            // this.createOffer(socketId);
           }
         } else {
-          args.forEach(item => {
-            this.createOffer(item.socketId);
-          });
+          makeToast("连接发生错误", "与后端数据库连接异常", "danger");
         }
       });
     },
@@ -222,11 +221,9 @@ export default Vue.extend({
       console.log("on-offer");
 
       const { data, from } = args;
-      const pcInstance: RTCPeerConnection =
-        this.pcInstanceMap?.[from] ||
-        new window.RTCPeerConnection({
-          iceServers: iceServerPublicList.map(item => ({ urls: item })),
-        });
+      const pcInstance: RTCPeerConnection = new window.RTCPeerConnection({
+        iceServers: iceServerPublicList.map(item => ({ urls: item })),
+      });
 
       pcInstance.onicecandidate = this.onRtcIceCandidate;
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));

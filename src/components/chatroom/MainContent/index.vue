@@ -15,15 +15,6 @@
             class="operation-btn"
             variant="outline-secondary"
             pill
-            @click="onDemoTest"
-          >
-          </b-button>
-          <b-button
-            v-b-tooltip.hover.v-secondary.noninteractive
-            title="刷新"
-            class="operation-btn"
-            variant="outline-secondary"
-            pill
             @click="onRefreshConnection"
           >
             <b-icon class="btn-icon" icon="slash-square" />
@@ -40,13 +31,14 @@
           </b-button>
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
-            title="切换屏幕分享"
+            :title="videoSource === 'webcam' ? '切换屏幕分享' : '切换到摄像头'"
             class="operation-btn"
             variant="outline-secondary"
             pill
+            @click="onSwitchMediaSource"
           >
-            <b-icon class="btn-icon" icon="window" />
-            <!-- <b-icon class="btn-icon" icon="camera-video" /> -->
+            <b-icon v-if="videoSource === 'webcam'" class="btn-icon" icon="window" />
+            <b-icon v-if="videoSource === 'screen'" class="btn-icon" icon="camera-video" />
           </b-button>
           <span class="separator" />
           <b-button
@@ -61,7 +53,7 @@
         </aside>
         <video
           ref="localVideoRef"
-          class="video-container local-video"
+          :class="['video-container', { 'local-video': videoSource === 'webcam' }]"
           muted
           autoplay
           playsinline
@@ -89,11 +81,14 @@ import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
+import socketioService from "~/assets/services/socket-io-client";
+
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
 import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
+import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
 export interface IMainContentState {
   userMediaAvailable: boolean;
@@ -117,19 +112,16 @@ export default Vue.extend({
     ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
       Properties<typeof ChatroomStore>
     >),
-    ...mapState("connection", [
-      "pcInstanceMap",
-      "currentStep",
-      "currentStepProcess",
-      "initReady",
-    ] as Array<Properties<typeof ConnectionStore>>),
+    ...mapState("connection", ["pcInstanceMap", "videoSource", "currentStep", "initReady"] as Array<
+      Properties<typeof ConnectionStore>
+    >),
   },
 
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
         case CONNECTION_INIT_STATUS.DONE: {
-          if (this.currentStepProcess === 0) this.setInitReady(true);
+          this.setInitReady(true);
           break;
         }
         default:
@@ -147,15 +139,7 @@ export default Vue.extend({
 
   mounted() {
     this.localStreamRef = ref<MediaStream | null>(null);
-    this.getLocalCameraMedia()
-      .then(stream => {
-        this.localStreamRef = ref(stream);
-        const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
-        if (localVideoControl) localVideoControl.srcObject = stream;
-      })
-      .catch(err => {
-        makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
-      });
+    this.getLocalMedia();
   },
 
   beforeDestroy() {
@@ -165,9 +149,7 @@ export default Vue.extend({
   methods: {
     ...mapMutations({
       setInitReady: "connection/setInitReady",
-      setCurrentStep: "connection/setCurrentStep",
-      addCurrentStepProcess: "connection/addCurrentStepProcess",
-      removeCurrentStepProcess: "connection/removeCurrentStepProcess",
+      setVideoSource: "connection/setVideoSource",
     }),
     ...mapActions({
       chatroomEnter: "chatroom/chatroomEnter",
@@ -203,6 +185,42 @@ export default Vue.extend({
       });
     },
 
+    getLocalDisplayMedia(): Promise<MediaStream> {
+      return new Promise((resolve, reject) => {
+        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        window.navigator.mediaDevices
+          .getDisplayMedia({
+            video: true,
+            audio: true,
+          })
+          .then(stream => {
+            resolve(stream);
+          })
+          .catch(err => {
+            reject(err);
+          });
+      });
+    },
+
+    getLocalMedia(): Promise<void> {
+      const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
+      if (localVideoControl) localVideoControl.srcObject = null;
+
+      const getLocalMedia =
+        (this.videoSource as "webcam" | "screen") === "webcam"
+          ? this.getLocalCameraMedia
+          : this.getLocalDisplayMedia;
+
+      return getLocalMedia()
+        .then(stream => {
+          this.localStreamRef = ref(stream);
+          if (localVideoControl) localVideoControl.srcObject = stream;
+        })
+        .catch(err => {
+          makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
+        });
+    },
+
     addLocalChannelToPeer(
       pcInstance: RTCPeerConnection,
       receiveSocketId: string,
@@ -224,7 +242,12 @@ export default Vue.extend({
         });
       };
 
-      this.getLocalCameraMedia()
+      const getLocalMedia =
+        (this.videoSource as "webcam" | "screen") === "webcam"
+          ? this.getLocalCameraMedia
+          : this.getLocalDisplayMedia;
+
+      getLocalMedia()
         .then(stream => {
           stream?.getTracks().forEach(track => {
             pcInstance.addTrack(track, stream);
@@ -238,17 +261,39 @@ export default Vue.extend({
         });
     },
 
-    onRefreshConnection(): void {
+    disconnect(): void {
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      const socketIdList = Object.keys(pcInstanceMap);
-      socketIdList.forEach(id => {
-        pcInstanceMap[id]?.close();
+      const socketIdList = Object.keys(pcInstanceMap).map(
+        item => ({ socketId: item } as IConnectionModel)
+      );
+      socketIdList.forEach(item => {
+        pcInstanceMap[item.socketId]?.close();
       });
-      this.$bus.$emit("connection/start", socketIdList);
     },
 
-    onDemoTest(): void {
-      console.log(this.remoteStreamList);
+    reconnect(): void {
+      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+      const socketIdList = Object.keys(pcInstanceMap).map(
+        item => ({ socketId: item } as IConnectionModel)
+      );
+      this.$bus.$emit("connection/start", [
+        ...socketIdList,
+        { socketId: socketioService.socket.id } as IConnectionModel,
+      ]);
+    },
+
+    onRefreshConnection(): void {
+      this.disconnect();
+      this.reconnect();
+    },
+
+    onSwitchMediaSource(): void {
+      this.disconnect();
+      this.localStreamRef = ref(null);
+      this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
+      this.getLocalMedia().then(res => {
+        this.reconnect();
+      });
     },
   },
 });

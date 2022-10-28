@@ -15,6 +15,7 @@ export default class ConnectionStore extends VuexModule {
   public pcInstanceMap: Record<string, RTCPeerConnection | null> = {};
 
   public widgetNum: number = 0;
+  public videoSource: "webcam" | "screen" = "webcam";
 
   public currentStep: number = CONNECTION_INIT_STATUS.PREPARED;
   public currentStepProcess: number = 0;
@@ -22,17 +23,22 @@ export default class ConnectionStore extends VuexModule {
 
   @Mutation
   public addWidgetNum(): void {
-    this.widgetNum = this.widgetNum++;
+    this.widgetNum++;
   }
 
   @Mutation
   public removeWidgetNum(): void {
-    this.widgetNum = this.widgetNum--;
+    this.widgetNum--;
   }
 
   @Mutation
   public resetWidgetNum(): void {
     this.widgetNum = 0;
+  }
+
+  @Mutation
+  public setVideoSource(value: "webcam" | "screen"): void {
+    this.videoSource = value;
   }
 
   @Mutation

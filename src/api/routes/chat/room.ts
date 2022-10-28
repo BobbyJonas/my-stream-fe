@@ -9,6 +9,8 @@ router.post("/enter", async (req, res) => {
   if (!postData.socketId || !postData.roomId) {
     res.status(403).send("传入信息不完整");
   } else {
+    console.log(postData);
+
     modifyConnectionItem({ socketId: postData.socketId }, postData)
       .then(_res => {
         res.status(200).send("ok");

@@ -25,6 +25,7 @@ export default class ChatroomStore extends VuexModule {
 
   @Action
   public async chatroomEnter(value: Partial<IConnectionModel>): Promise<void> {
+    console.log(value);
     await $axios.post("/chat/room/enter", value);
   }
 

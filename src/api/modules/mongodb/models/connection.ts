@@ -42,15 +42,11 @@ export const getConnectionList = (
   constraints?: Partial<IConnectionModel>
 ): Promise<Array<IConnectionModel>> => {
   return new Promise((resolve, reject) => {
-    ConnectionModel.find(
-      constraints || {},
-      (reason, result) => {
-        if (reason instanceof Error) reject(reason);
-        else resolve(result);
-        return result;
-      },
-      { sort: { time: 1 } }
-    );
+    ConnectionModel.find(constraints || {}, (reason, result) => {
+      if (reason instanceof Error) reject(reason);
+      else resolve(result);
+      return result;
+    });
   });
 };
 

@@ -62,7 +62,7 @@ import { mapMutations, mapState } from "vuex";
 import moment from "moment";
 
 import ChatroomStore from "~/store/chatroom";
-import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
+import ConnectionStore from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import { makeToast, Properties } from "~/assets/utils/common";
@@ -99,19 +99,6 @@ export default Vue.extend({
     ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
   },
 
-  watch: {
-    currentStep(currentValue) {
-      switch (currentValue) {
-        case CONNECTION_INIT_STATUS.DONE: {
-          if (this.currentStepProcess === 0) this.setInitReady(true);
-          break;
-        }
-        default:
-          break;
-      }
-    },
-  },
-
   created() {
     this.$bus.$on("global/createChannel", this.createDataChannel);
     this.$bus.$on("global/removeChannel", this.removeDataChannel);
@@ -131,16 +118,17 @@ export default Vue.extend({
 
     createDataChannel(pcInstance: RTCPeerConnection, receiveSocketId: string, next: () => void) {
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
-      if (!currentDataChannel) {
-        const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
-          protocol: "json",
-          maxRetransmits: 5,
-        });
-        newDataChannel.onopen = this.onChannelStatusChange;
-        newDataChannel.onclose = this.onChannelStatusChange;
-        newDataChannel.onmessage = this.onRemoteMessage;
-        this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
-      }
+      if (currentDataChannel) currentDataChannel?.close();
+
+      const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
+        protocol: "json",
+        maxRetransmits: 5,
+      });
+      newDataChannel.onopen = this.onChannelStatusChange;
+      newDataChannel.onclose = this.onChannelStatusChange;
+      newDataChannel.onmessage = this.onRemoteMessage;
+      this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
+
       pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
         this.onRemoteChannelConnected(e, receiveSocketId);
       };
