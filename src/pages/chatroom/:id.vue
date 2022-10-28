@@ -169,7 +169,6 @@ export default Vue.extend({
     onSocketJoin(args: IConnectionModel[]) {
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      console.log(currentIndex);
 
       Promise.all(
         args
@@ -178,7 +177,6 @@ export default Vue.extend({
             const socketId = item.socketId;
             if (socketId === socketioService.socket.id) return Promise.resolve();
             let pcInstance = pcInstanceMap?.[socketId];
-            console.log(pcInstance);
 
             if (!(pcInstance?.connectionState === "connected")) {
               pcInstance = new window.RTCPeerConnection({
