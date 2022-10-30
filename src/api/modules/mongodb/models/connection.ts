@@ -1,11 +1,12 @@
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 import db from "../database";
 const { Schema, model } = db;
 
 export interface IConnectionModel {
+  _id: string;
   socketId: string;
   roomId: string;
-  userId: string;
+  userId: Types.ObjectId; // 用户登录 id
   time: number;
 }
 
@@ -13,7 +14,7 @@ const connectionSchema = new Schema<IConnectionModel>({
   socketId: { type: String, unique: true },
   roomId: String,
   userId: {
-    type: Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: "User",
   } as any,
   time: {
@@ -42,11 +43,13 @@ export const getConnectionList = (
   constraints?: Partial<IConnectionModel>
 ): Promise<Array<IConnectionModel>> => {
   return new Promise((resolve, reject) => {
-    ConnectionModel.find(constraints || {}, (reason, result) => {
-      if (reason instanceof Error) reject(reason);
-      else resolve(result);
-      return result;
-    });
+    ConnectionModel.find(constraints || {})
+      .populate("userId")
+      .exec((reason, result) => {
+        if (reason instanceof Error) reject(reason);
+        else resolve(result as any);
+        return result;
+      });
   });
 };
 

@@ -1,17 +1,17 @@
 <template>
   <b-overlay
     :show="!funcInitReady"
+    class="widget-container-overlay"
     variant="light"
     :opacity="0.65"
     blur=""
     spinner-variant="primary"
     spinner-type="grow"
     spinner-small
-    :style="{ width: '100%' }"
   >
-    <div class="sidebar-widget-container">
+    <div class="widget-container">
       <div ref="chat-record-wrapper" class="chat-record-wrapper">
-        <ul class="chat-message">
+        <ul v-if="chatList && chatList.length > 0" class="chat-message">
           <li v-for="(item, index) in chatList" :key="index" class="message-item">
             <div class="head">
               <span class="author">{{ item.userNickname }}</span>
@@ -20,6 +20,7 @@
             <p class="content">{{ item.msgContent || "" }}</p>
           </li>
         </ul>
+        <Empty v-else :message="'历史聊天内容为空'" />
       </div>
       <div class="chat-send-wrapper">
         <b-form-textarea
@@ -65,6 +66,8 @@ import ChatroomStore from "~/store/chatroom";
 import ConnectionStore from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
+import Empty from "@/components/common/Empty.vue";
+
 import { makeToast, Properties } from "~/assets/utils/common";
 
 export interface ITextChatboxState {
@@ -79,7 +82,9 @@ export interface ITextChatboxState {
 type State = ITextChatboxState;
 
 export default Vue.extend({
-  components: {} as Record<string, Component>,
+  components: {
+    Empty,
+  } as Record<string, Component>,
 
   data() {
     return {
@@ -189,7 +194,7 @@ export default Vue.extend({
         return;
       }
 
-      const currentMessage: IMessageModel = {
+      const currentMessage: Partial<IMessageModel> = {
         roomId: this.currentRoomId,
         timeSent: new Date(),
         msgType: "text",
@@ -220,13 +225,18 @@ export default Vue.extend({
 <style lang="less" scoped>
 @import "@/assets/styles/mixin.less";
 
-.sidebar-widget-container {
+.widget-container-overlay {
+  @apply w-full h-full;
+}
+
+.widget-container {
   @apply w-full h-full;
 
   display: flex;
   flex-direction: column;
   color: @text-color-lighter;
   background-color: rgb(white 0.25);
+  overflow: hidden;
 
   .chat-record-wrapper {
     @apply px-5 py-4;

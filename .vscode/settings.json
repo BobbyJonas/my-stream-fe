@@ -11,7 +11,8 @@
     "tailwindcss",
     "truetype",
     "unplugin",
-    "vuejs"
+    "vuejs",
+    "webrtc"
   ],
   "css.validate": false,
   "css.lint.unknownAtRules": "ignore",

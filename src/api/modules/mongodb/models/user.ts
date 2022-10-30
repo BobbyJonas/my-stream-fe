@@ -61,12 +61,16 @@ export const createUserItem = (data: Partial<IUserModel>): Promise<IUserModel> =
   });
 };
 
-export const getUserList = (): Promise<Array<IUserModel>> => {
+export const getUserList = (constraints: Partial<IUserModel>): Promise<Array<IUserModel>> => {
   return new Promise((resolve, reject) => {
-    UserModel.find((reason, result) => {
+    UserModel.find(constraints, (reason, result) => {
       if (reason instanceof Error) reject(reason);
       else resolve(result);
       return result;
     });
   });
+};
+
+export const removeUserItem = (constraints: Partial<IUserModel>) => {
+  return UserModel.findOneAndDelete(constraints);
 };

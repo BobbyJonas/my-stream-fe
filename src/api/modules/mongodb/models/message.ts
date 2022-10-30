@@ -1,8 +1,9 @@
-import { Types } from "mongoose";
+import type { Types } from "mongoose";
 import db from "../database";
 const { Schema, model } = db;
 
 export interface IMessageModel {
+  _id: string;
   roomId: string; // 房间 id
   timeSent: Date; // 发送时间
   msgType: string; // 消息类型 text/emoji/image/file
@@ -24,7 +25,7 @@ const messageSchema = new Schema<IMessageModel>({
   emoji: String,
   read: { type: Boolean, default: false },
   userId: {
-    type: Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: "User",
   } as any,
   userNickname: String,

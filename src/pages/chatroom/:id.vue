@@ -170,49 +170,49 @@ export default Vue.extend({
       const currentIndex = args.findIndex(item => item.socketId === socketioService.socket.id);
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
 
-      Promise.all(
-        args
-          .filter(item => item.socketId !== socketioService.socket.id)
-          .map((item): Promise<void> => {
-            const socketId = item.socketId;
-            if (socketId === socketioService.socket.id) return Promise.resolve();
-            let pcInstance = pcInstanceMap?.[socketId];
+      if (currentIndex >= 0) {
+        if (currentIndex === args.length - 1) {
+          Promise.all(
+            args
+              .filter(item => item.socketId !== socketioService.socket.id)
+              .map((item): Promise<void> => {
+                const socketId = item.socketId;
+                if (socketId === socketioService.socket.id) return Promise.resolve();
+                let pcInstance = pcInstanceMap?.[socketId];
 
-            if (!(pcInstance?.connectionState === "connected")) {
-              pcInstance = new window.RTCPeerConnection({
-                iceServers: iceServerPublicList.map(item => ({ urls: item })),
-              });
-              pcInstance.onicecandidate = this.onRtcIceCandidate;
-              this.$set(this.pcInstanceMap, socketId, pcInstance);
-              this.setPcInstanceMap(this.pcInstanceMap);
-              window.__MY_STREAM__ = _.defaultsDeep(
-                { $pcInstanceMap: this.pcInstanceMap },
-                window.__MY_STREAM__ || {}
-              );
-            }
-            return new Promise((resolve, reject) => {
-              let readyWidgetNum = 0;
-              const internalResolve = () => {
-                readyWidgetNum++;
-                console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
+                if (!(pcInstance?.connectionState === "connected")) {
+                  pcInstance = new window.RTCPeerConnection({
+                    iceServers: iceServerPublicList.map(item => ({ urls: item })),
+                  });
+                  pcInstance.onicecandidate = this.onRtcIceCandidate;
+                  this.$set(this.pcInstanceMap, socketId, pcInstance);
+                  this.setPcInstanceMap(this.pcInstanceMap);
+                  window.__MY_STREAM__ = _.defaultsDeep(
+                    { $pcInstanceMap: this.pcInstanceMap },
+                    window.__MY_STREAM__ || {}
+                  );
+                }
+                return new Promise((resolve, reject) => {
+                  let readyWidgetNum = 0;
+                  const internalResolve = () => {
+                    readyWidgetNum++;
+                    console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
 
-                if (readyWidgetNum >= this.widgetNum) return resolve();
-              };
-              this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
-            });
-          })
-      ).then(() => {
-        if (currentIndex >= 0) {
-          if (currentIndex === args.length - 1) {
+                    if (readyWidgetNum >= this.widgetNum) return resolve();
+                  };
+                  this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
+                });
+              })
+          ).then(() => {
             const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
             receiverList.forEach(socketId => {
               this.createOffer(socketId);
             });
-          }
-        } else {
-          makeToast("连接发生错误", "与后端数据库连接异常", "danger");
+          });
         }
-      });
+      } else {
+        makeToast("连接发生错误", "与后端数据库连接异常", "danger");
+      }
     },
 
     onSocketOffer(args: ISocketRTCConnectionMessage) {

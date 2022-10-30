@@ -289,9 +289,14 @@ export default Vue.extend({
 
     onSwitchMediaSource(): void {
       this.disconnect();
+      if (this.localStreamRef.value) {
+        this.localStreamRef.value?.getTracks().forEach(track => {
+          track?.stop();
+        });
+      }
       this.localStreamRef = ref(null);
       this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
-      this.getLocalMedia().then(res => {
+      this.getLocalMedia().then(() => {
         this.reconnect();
       });
     },

@@ -76,6 +76,9 @@
           >
             <div class="card-avatar"></div>
             <p class="card-name">{{ item.nickname }}</p>
+            <div class="card-delete" @click="onDeleteCardClick($event, index)">
+              <b-icon class="btn-icon" icon="trash" />
+            </div>
           </li>
           <li
             class="card-item card-add"
@@ -174,14 +177,51 @@ export default Vue.extend({
     }),
 
     onRoleCardClick(index: number) {
-      this.selectRoleIndex = index;
-      window.localStorage["current-role"] = JSON.stringify(this.userRoleList[this.selectRoleIndex]);
-      this.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+      if (index >= 0) {
+        this.selectRoleIndex = index;
+        window.localStorage["current-role"] = JSON.stringify(
+          this.userRoleList[this.selectRoleIndex]
+        );
+        this.setCurrentUserRole(this.userRoleList[this.selectRoleIndex]);
+      } else {
+        this.selectRoleIndex = -1;
+        delete window.localStorage["current-role"];
+        this.setCurrentUserRole(undefined);
+      }
     },
 
     onAddCardClick() {
       this.onResetUserInfo();
       this.currentAddUser = true;
+    },
+
+    onDeleteCardClick(e: MouseEvent, index: number) {
+      e.stopPropagation();
+
+      if (this.loading) return;
+      const userRole = this.userRoleList[index];
+      if (!userRole._id) return;
+      this.loading = true;
+      this.$axios
+        .delete(`/db/user/${userRole._id}`)
+        .then(res => {
+          console.log(userRole);
+          console.log(res);
+
+          this.$delete(this.userRoleList, index);
+          if (this.userRoleList?.length > 0) {
+            window.localStorage["user-role"] = JSON.stringify(this.userRoleList);
+          } else {
+            delete window.localStorage["user-role"];
+          }
+          while (!this.userRoleList[index] && index >= 0) index--;
+          this.$nextTick(() => {
+            this.onRoleCardClick(index - 1);
+          });
+        })
+        .finally(() => {
+          this.loading = false;
+        });
     },
 
     onSubmitUserInfo(event: FormDataEvent) {
@@ -203,8 +243,10 @@ export default Vue.extend({
             this.userRoleList.push(data as IUserModel);
             window.localStorage["user-role"] = JSON.stringify(this.userRoleList);
             this.ifUserRoleExists = true;
-            this.selectRoleIndex = this.userRoleList.length - 1;
             this.currentAddUser = false;
+            this.$nextTick(() => {
+              this.onRoleCardClick(this.userRoleList.length - 1);
+            });
           }
         })
         .finally(() => {
@@ -324,11 +366,12 @@ export default Vue.extend({
     }
 
     .list-wrapper {
-      padding: 20px 12px;
+      padding: 30px 12px;
       overflow: auto;
       white-space: nowrap;
 
       .card-item {
+        position: relative;
         display: inline-flex;
         flex-direction: column;
         justify-content: space-between;
@@ -337,13 +380,48 @@ export default Vue.extend({
         width: @card-width;
         padding: 14px 0;
         margin: 0 10px;
-        border: 1px solid transparent;
         border-radius: 5px;
         vertical-align: top;
         cursor: pointer;
+        transition: all 0.3s;
+
+        .card-avatar {
+          display: inline-block;
+          height: 72px;
+          width: 72px;
+          border-radius: @border-radius-infinite;
+          background-color: rgba(black, 0.5);
+        }
+
+        .card-delete {
+          position: absolute;
+          left: 0;
+          bottom: 100%;
+          width: 100%;
+          height: 28px;
+          color: @text-color-light;
+          font-size: @font-size-lg;
+          line-height: 26px;
+          text-align: center;
+          border-radius: 5px 5px 0 0;
+          background-color: rgba(@color-error, 0.05);
+          border: 1px solid transparent;
+          border-bottom: none;
+          opacity: 0;
+          transition: all 0.3s;
+
+          &:hover {
+            background-color: rgba(@color-error, 0.12);
+          }
+        }
 
         &:hover {
           background-color: rgba(black, 0.05);
+          border-radius: 0 0 5px 5px;
+
+          .card-delete {
+            opacity: 1;
+          }
         }
 
         &:active {
@@ -353,15 +431,11 @@ export default Vue.extend({
         &--active {
           font-weight: bolder;
           background-color: rgba(black, 0.08);
-          border-color: rgba(black, 0.02);
-        }
+          box-shadow: 0 0 0 1px rgba(black, 0.1) inset;
 
-        .card-avatar {
-          display: inline-block;
-          height: 72px;
-          width: 72px;
-          border-radius: @border-radius-infinite;
-          background-color: rgba(black, 0.5);
+          &:hover .card-delete {
+            border-color: rgba(grey, 0.2);
+          }
         }
       }
 
