@@ -205,9 +205,6 @@ export default Vue.extend({
       this.$axios
         .delete(`/db/user/${userRole._id}`)
         .then(res => {
-          console.log(userRole);
-          console.log(res);
-
           this.$delete(this.userRoleList, index);
           if (this.userRoleList?.length > 0) {
             window.localStorage["user-role"] = JSON.stringify(this.userRoleList);

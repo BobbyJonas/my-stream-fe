@@ -1,17 +1,25 @@
 <template>
   <div class="widget-container">
     <dl class="member-container">
-      <dt class="title">用户</dt>
-      <dd class="member">
-        {{ currentUserRole ? currentUserRole.nickname : "" }}
-        <span class="current">(此用户)</span>
-      </dd>
+      <dt class="member-header">
+        <h4 class="title">用户</h4>
+        <b-button
+          v-b-tooltip.hover.left.v-secondary.noninteractive
+          title="刷新列表"
+          class="refresh-btn"
+          @click="addMember()"
+        >
+          <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
+        </b-button>
+      </dt>
       <dd
-        v-for="(item, index) in memberList"
+        v-for="item in memberList"
         :key="item.socketId"
         :class="['member', { 'member--offline': !item.online }]"
       >
-        {{ item.nickname }}
+        <span class="name">{{ item.nickname }}</span>
+        <span v-if="item.socketId === currentSocketId" class="current">(此用户)</span>
+        <span class="time">{{ item.online ? date2Text(item.time) : "下线" }}</span>
       </dd>
     </dl>
   </div>
@@ -20,22 +28,27 @@
 <script lang="ts">
 import Vue, { Component } from "vue";
 import moment from "moment";
+import "moment/locale/zh-cn";
 import qs from "qs";
 
-import { mapActions, mapMutations, mapState } from "vuex";
+import { mapState } from "vuex";
 
 import type { AxiosResponse } from "axios";
+import socketioService from "~/assets/services/socket-io-client";
 import type { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
 
+import { Properties } from "~/assets/utils/common";
 import ChatroomStore from "~/store/chatroom";
-import { makeToast, Properties } from "~/assets/utils/common";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
 type IConnectionPopulateModel = Omit<IConnectionModel, "userId"> & { userId: IUserModel };
+type IMemberItem = IUserModel & { time: number; socketId: string; online: boolean };
 
 export interface IMemberState {
   memberMap: Record<string, boolean>;
-  memberList: Array<IUserModel & { socketId: string; online: boolean }>;
+  memberList: Array<IMemberItem>;
+  currentSocketId: string;
 }
 
 type State = IMemberState;
@@ -47,6 +60,7 @@ export default Vue.extend({
     return {
       memberMap: {},
       memberList: [],
+      currentSocketId: "",
     } as State;
   },
 
@@ -54,6 +68,22 @@ export default Vue.extend({
     ...mapState("chatroom", ["currentUserRole", "currentRoomId"] as Array<
       Properties<typeof ChatroomStore>
     >),
+    ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
+  },
+
+  watch: {
+    currentStep(currentValue) {
+      switch (currentValue) {
+        case CONNECTION_INIT_STATUS.DONE:
+          if (socketioService.socket?.id) {
+            this.currentSocketId = socketioService.socket.id;
+            this.addMember(socketioService.socket.id);
+          }
+          break;
+        default:
+          break;
+      }
+    },
   },
 
   created() {
@@ -76,27 +106,62 @@ export default Vue.extend({
       this.removeMember(from);
     },
 
-    addMember(receiveSocketId: string): void {
-      this.$set(this.memberMap, receiveSocketId, true);
+    addMember(receiveSocketId?: string): void {
+      if (receiveSocketId) this.$set(this.memberMap, receiveSocketId, true);
       this.$axios
         .get(
-          `/db/connection${qs.stringify({ socketId: receiveSocketId }, { addQueryPrefix: true })}`
+          `/db/connection${
+            receiveSocketId
+              ? qs.stringify({ socketId: receiveSocketId }, { addQueryPrefix: true })
+              : ""
+          }`
         )
         .then((res: AxiosResponse<IConnectionPopulateModel[]>) => {
-          const [data] = res.data || [];
-          const findIndex = this.memberList.findIndex(
-            item => item._id === data.userId._id && !item.online
-          );
-          if (findIndex >= 0) {
-            this.$set(this.memberList, findIndex, {
-              ...this.memberList[findIndex],
-              socketId: receiveSocketId,
-              online: true,
-            });
-          } else {
-            this.memberList.push({ ...data.userId, socketId: receiveSocketId, online: true });
-          }
-          console.log(this.memberList);
+          const dataList = res.data || [];
+          const socketIdMap: Record<string, boolean> = {};
+          const userIdMap: Record<string, Array<number>> = {};
+
+          this.memberList.forEach((item, index) => {
+            socketIdMap[item.socketId] = true;
+            if (!item.online) {
+              if (!userIdMap[item._id]) userIdMap[item._id] = [];
+              userIdMap[item._id].push(index);
+            }
+          });
+
+          dataList.forEach(data => {
+            const findIndex = userIdMap[data.userId._id]?.[0] ?? -1;
+            if (findIndex >= 0) {
+              userIdMap[data.userId._id].shift();
+              this.$set(this.memberList, findIndex, {
+                ...this.memberList[findIndex],
+                socketId: data.socketId,
+                time: data.time,
+                online: true,
+              });
+            } else if (!socketIdMap[data.socketId]) {
+              socketIdMap[data.socketId] = true;
+              this.memberList.push({
+                ...data.userId,
+                time: data.time,
+                socketId: data.socketId,
+                online: true,
+              });
+            }
+          });
+
+          const currentUser: Array<IMemberItem> = [];
+          const onlineList: Array<IMemberItem> = [];
+          const offlineList: Array<IMemberItem> = [];
+          this.memberList.forEach(item => {
+            if (item.socketId === socketioService.socket?.id) {
+              currentUser.push(item);
+              return;
+            }
+            if (item.online) onlineList.push(item);
+            else offlineList.push(item);
+          });
+          this.$set(this, "memberList", [...currentUser, ...onlineList, ...offlineList]);
         });
     },
 
@@ -109,6 +174,10 @@ export default Vue.extend({
           online: false,
         });
       }
+    },
+
+    date2Text(value: Date | number): string {
+      return moment(value).fromNow();
     },
   },
 });
@@ -127,23 +196,39 @@ export default Vue.extend({
   overflow: hidden;
 
   .member-container {
-    @apply px-5 py-4;
+    @apply px-6 py-4;
 
     font-size: @font-size-sm;
 
-    .title {
-      margin-bottom: 8px;
+    .member-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+
+      .title {
+        display: inline;
+      }
+
+      .refresh-btn {
+        padding: 3px 6px;
+        transform: translateY(1px);
+
+        .btn-icon {
+          vertical-align: -3px;
+        }
+      }
     }
 
     .member {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
 
       &::before {
         content: "";
         display: inline-block;
         width: 4px;
         height: 4px;
-        margin-right: 4px;
+        margin-right: 8px;
         border-radius: @border-radius-infinite;
         background-color: @color-success;
         vertical-align: 3px;
@@ -151,6 +236,16 @@ export default Vue.extend({
 
       &--offline::before {
         background-color: gray;
+      }
+
+      .current {
+        margin-left: 2px;
+        color: darkgray;
+      }
+
+      .time {
+        float: right;
+        color: gray;
       }
     }
   }
