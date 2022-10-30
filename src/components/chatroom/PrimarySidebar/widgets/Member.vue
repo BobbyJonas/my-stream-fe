@@ -7,7 +7,12 @@
           v-b-tooltip.hover.left.v-secondary.noninteractive
           title="刷新列表"
           class="refresh-btn"
-          @click="addMember()"
+          @click="
+            () => {
+              memberList = [];
+              addMember();
+            }
+          "
         >
           <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
         </b-button>
