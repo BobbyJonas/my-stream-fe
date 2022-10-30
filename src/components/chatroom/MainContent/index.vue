@@ -47,6 +47,7 @@
             class="operation-btn"
             variant="danger"
             pill
+            @click="onExitRoom"
           >
             <b-icon class="btn-icon" icon="telephone-fill" />
           </b-button>
@@ -81,12 +82,12 @@ import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
+import { userMediaVideoTrackConstraints } from "../utils";
 import socketioService from "~/assets/services/socket-io-client";
 
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
-import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
 import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
@@ -143,6 +144,11 @@ export default Vue.extend({
   },
 
   beforeDestroy() {
+    if (this.localStreamRef.value) {
+      this.localStreamRef.value?.getTracks().forEach(track => {
+        track?.stop();
+      });
+    }
     this.$bus.$emit("connection/removeWidgetNum");
   },
 
@@ -261,43 +267,30 @@ export default Vue.extend({
         });
     },
 
-    disconnect(): void {
-      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      const socketIdList = Object.keys(pcInstanceMap).map(
-        item => ({ socketId: item } as IConnectionModel)
-      );
-      socketIdList.forEach(item => {
-        pcInstanceMap[item.socketId]?.close();
-      });
-    },
-
-    reconnect(): void {
-      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      const socketIdList = Object.keys(pcInstanceMap).map(
-        item => ({ socketId: item } as IConnectionModel)
-      );
-      this.$bus.$emit("connection/start", [
-        ...socketIdList,
-        { socketId: socketioService.socket.id } as IConnectionModel,
-      ]);
-    },
-
     onRefreshConnection(): void {
-      this.disconnect();
-      this.reconnect();
+      this.$bus.$emit("connection/start");
     },
 
     onSwitchMediaSource(): void {
-      this.disconnect();
-      if (this.localStreamRef.value) {
-        this.localStreamRef.value?.getTracks().forEach(track => {
-          track?.stop();
+      this.$bus.$emit("connection/stop");
+      this.$nextTick(() => {
+        if (this.localStreamRef.value) {
+          this.localStreamRef.value?.getTracks().forEach(track => {
+            track?.stop();
+          });
+        }
+        this.localStreamRef = ref(null);
+        this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
+        this.getLocalMedia().then(() => {
+          this.$bus.$emit("connection/start");
         });
-      }
-      this.localStreamRef = ref(null);
-      this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
-      this.getLocalMedia().then(() => {
-        this.reconnect();
+      });
+    },
+
+    onExitRoom(): void {
+      this.$bus.$emit("connection/stop");
+      this.$nextTick(() => {
+        this.$bus.$emit("global/exit");
       });
     },
   },

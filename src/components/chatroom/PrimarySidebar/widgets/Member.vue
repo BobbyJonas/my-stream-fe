@@ -1,33 +1,45 @@
 <template>
-  <div class="widget-container">
-    <dl class="member-container">
-      <dt class="member-header">
-        <h4 class="title">用户</h4>
-        <b-button
-          v-b-tooltip.hover.left.v-secondary.noninteractive
-          title="刷新列表"
-          class="refresh-btn"
-          @click="
-            () => {
-              memberList = [];
-              addMember();
-            }
-          "
+  <b-overlay
+    :show="isLoading"
+    class="widget-container-overlay"
+    variant="light"
+    :opacity="0.65"
+    blur=""
+    spinner-variant="primary"
+    spinner-type="grow"
+    spinner-small
+  >
+    <div class="widget-container">
+      <dl class="member-container">
+        <dt class="member-header">
+          <h4 class="title">用户</h4>
+          <b-button
+            v-b-tooltip.hover.left.v-secondary.noninteractive
+            title="刷新列表"
+            class="refresh-btn"
+            @click="
+              () => {
+                if (isLoading) return;
+                memberList = [];
+                addMember();
+              }
+            "
+          >
+            <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
+          </b-button>
+        </dt>
+        <dd
+          v-for="item in memberList"
+          :key="item.socketId"
+          :class="['member', { 'member--offline': !item.online }]"
         >
-          <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
-        </b-button>
-      </dt>
-      <dd
-        v-for="item in memberList"
-        :key="item.socketId"
-        :class="['member', { 'member--offline': !item.online }]"
-      >
-        <span class="name">{{ item.nickname }}</span>
-        <span v-if="item.socketId === currentSocketId" class="current">(此用户)</span>
-        <span class="time">{{ item.online ? date2Text(item.time) : "下线" }}</span>
-      </dd>
-    </dl>
-  </div>
+          <span class="name">{{ item.nickname }}</span>
+          <span v-if="item.socketId === currentSocketId" class="current">(此用户)</span>
+          <span class="time">{{ item.online ? date2Text(item.time) : "下线" }}</span>
+        </dd>
+      </dl>
+    </div>
+  </b-overlay>
 </template>
 
 <script lang="ts">
@@ -51,6 +63,7 @@ type IConnectionPopulateModel = Omit<IConnectionModel, "userId"> & { userId: IUs
 type IMemberItem = IUserModel & { time: number; socketId: string; online: boolean };
 
 export interface IMemberState {
+  isLoading: boolean;
   memberMap: Record<string, boolean>;
   memberList: Array<IMemberItem>;
   currentSocketId: string;
@@ -63,6 +76,7 @@ export default Vue.extend({
 
   data() {
     return {
+      isLoading: false,
       memberMap: {},
       memberList: [],
       currentSocketId: "",
@@ -112,6 +126,7 @@ export default Vue.extend({
     },
 
     addMember(receiveSocketId?: string): void {
+      this.isLoading = true;
       if (receiveSocketId) this.$set(this.memberMap, receiveSocketId, true);
       this.$axios
         .get(
@@ -167,6 +182,9 @@ export default Vue.extend({
             else offlineList.push(item);
           });
           this.$set(this, "memberList", [...currentUser, ...onlineList, ...offlineList]);
+        })
+        .finally(() => {
+          this.isLoading = false;
         });
     },
 
@@ -190,6 +208,10 @@ export default Vue.extend({
 
 <style lang="less" scoped>
 @import "@/assets/styles/mixin.less";
+
+.widget-container-overlay {
+  @apply w-full h-full;
+}
 
 .widget-container {
   @apply w-full h-full;
