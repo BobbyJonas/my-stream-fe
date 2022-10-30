@@ -109,13 +109,6 @@ export default Vue.extend({
   beforeMount() {
     window.__MY_STREAM__ = _.defaultsDeep({ $bus: this?.$bus }, window.__MY_STREAM__ || {});
     // console.log(adapter.browserDetails.browser);
-    this.setCurrentRoomId(this.$route.params?.id);
-
-    const storageCurrentRole: string = window.localStorage["current-role"];
-    if (storageCurrentRole) {
-      const currentRoleObj: IUserModel = JSON.parse(storageCurrentRole);
-      this.setCurrentUserRole(currentRoleObj);
-    }
 
     setTimeout(() => {
       this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
@@ -124,7 +117,6 @@ export default Vue.extend({
 
   beforeDestroy() {
     socketioService.disconnect();
-    this.setCurrentRoomId(undefined);
     this.setCurrentStep(CONNECTION_INIT_STATUS.PREPARED);
     this.resetWidgetNum();
 
@@ -143,13 +135,6 @@ export default Vue.extend({
   },
 
   methods: {
-    ...(mapMutations({
-      setCurrentUserRole: "chatroom/setCurrentUserRole",
-      setCurrentRoomId: "chatroom/setCurrentRoomId",
-    }) as {
-      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
-    }),
-
     ...(mapMutations({
       setPcInstanceMap: "connection/setPcInstanceMap",
       setCurrentStep: "connection/setCurrentStep",

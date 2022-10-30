@@ -19,7 +19,7 @@ export default class ChatroomStore extends VuexModule {
   }
 
   @Mutation
-  public setCurrentRoomId(value: string): void {
+  public setCurrentRoomId(value?: string): void {
     this.currentRoomId = value;
   }
 

@@ -15,7 +15,15 @@
 
 <script lang="ts">
 import Vue, { Component } from "vue";
+
+import { mapMutations, mapState } from "vuex";
+
 import ChatroomContent from "~/components/chatroom/index.vue";
+
+import ChatroomStore from "~/store/chatroom";
+import type { IUserModel } from "~/api/modules/mongodb/models/user";
+
+import { makeToast, Properties } from "~/assets/utils/common";
 
 export interface IChatroomPageState {
   available: boolean;
@@ -36,11 +44,34 @@ export default Vue.extend({
     } as State;
   },
 
-  mounted() {
+  created() {
     this.$bus.$on("global/exit", this.onGlobalExitRoom);
   },
 
+  beforeMount() {
+    this.setCurrentRoomId(this.$route.params?.id);
+
+    const storageCurrentRole: string = window.localStorage["current-role"];
+    if (storageCurrentRole) {
+      const currentRoleObj: IUserModel = JSON.parse(storageCurrentRole);
+      this.setCurrentUserRole(currentRoleObj);
+    }
+  },
+
+  beforeDestroy() {
+    this.setCurrentRoomId(undefined);
+
+    this.$bus.$off("global/exit");
+  },
+
   methods: {
+    ...(mapMutations({
+      setCurrentUserRole: "chatroom/setCurrentUserRole",
+      setCurrentRoomId: "chatroom/setCurrentRoomId",
+    }) as {
+      [x in Properties<typeof ChatroomStore>]: ChatroomStore[x];
+    }),
+
     onGlobalExitRoom(): void {
       this.available = false;
     },
