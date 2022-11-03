@@ -43,6 +43,16 @@
           <span class="separator" />
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onTestClick"
+          >
+            测试
+          </b-button>
+          <span class="separator" />
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
             title="结束通话"
             class="operation-btn"
             variant="danger"
@@ -83,6 +93,7 @@ import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
 import { userMediaVideoTrackConstraints } from "../utils";
+import { AudioNodes } from "./effects";
 import socketioService from "~/assets/services/socket-io-client";
 
 import ChatroomStore from "~/store/chatroom";
@@ -95,6 +106,8 @@ export interface IMainContentState {
   userMediaAvailable: boolean;
   localStreamRef: Ref<MediaStream | null>;
   remoteStreamList: Record<string, MediaStream | null>;
+  audioNodes: AudioNodes | null;
+  audioContext: AudioContext | null;
 }
 
 type State = IMainContentState;
@@ -106,6 +119,7 @@ export default Vue.extend({
     return {
       userMediaAvailable: false,
       remoteStreamList: {},
+      audioNodes: null,
     } as State;
   },
 
@@ -140,6 +154,7 @@ export default Vue.extend({
 
   mounted() {
     this.localStreamRef = ref<MediaStream | null>(null);
+    this.audioContext = new (window.AudioContext || (window as any)?.webkitAudioContext)();
     this.getLocalMedia();
   },
 
@@ -149,6 +164,7 @@ export default Vue.extend({
         track?.stop();
       });
     }
+    this.audioContext?.close();
     this.$bus.$emit("connection/removeWidgetNum");
   },
 
@@ -183,10 +199,20 @@ export default Vue.extend({
             audio: true,
           })
           .then(stream => {
-            resolve(stream);
-          })
-          .catch(err => {
-            reject(err);
+            if (!this.audioNodes) {
+              this.audioNodes = new AudioNodes(stream, this.audioContext!, [
+                // "tunachorus",
+                // "tunaphaser",
+                // "tunawahwah",
+                // "tunaoverdrive",
+                // "tunatremolo",
+                "pitch",
+              ]);
+            }
+            // this.audioNodes.loadPresets(this.audioNodes.funcPresets.pitchHigh);
+            const videoTracks = stream.getVideoTracks();
+            this.audioNodes.stream?.addTrack(videoTracks[0]);
+            resolve(this.audioNodes.stream!);
           });
       });
     },
@@ -292,6 +318,15 @@ export default Vue.extend({
       this.$nextTick(() => {
         this.$bus.$emit("global/exit");
       });
+    },
+
+    onTestClick(): void {
+      console.log(this.audioNodes);
+      console.log(this.audioNodes?.stream);
+      this.audioNodes?.pitchJungle?.setPitchOffset(1);
+      const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
+      if (localVideoControl && this.audioNodes?.stream)
+        localVideoControl.srcObject = this.audioNodes?.stream;
     },
   },
 });
