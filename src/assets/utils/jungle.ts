@@ -222,12 +222,12 @@ export class Jungle {
     this.setDelay(this.delayTime);
   }
 
-  setDelay(delayTime) {
+  private setDelay(delayTime: number) {
     this.modGain1.gain.setTargetAtTime(0.5 * delayTime, 0, 0.01);
     this.modGain2.gain.setTargetAtTime(0.5 * delayTime, 0, 0.01);
   }
 
-  setPitchOffset(mult) {
+  public setPitchOffset(mult: number) {
     if (mult > 0) {
       // pitch up
       this.mod1Gain.gain.value = 0;
