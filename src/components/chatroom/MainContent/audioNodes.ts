@@ -1,7 +1,7 @@
-/* eslint-disable no-lonely-if */
-import Tuna from "tunajs";
 import _ from "lodash";
-import { Jungle } from "~/assets/utils/jungle";
+import Tuna from "tunajs";
+
+import Jungle from "./jungle";
 
 const NodeNameList = [
   "delay",

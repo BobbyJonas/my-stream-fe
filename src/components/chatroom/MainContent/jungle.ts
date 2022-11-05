@@ -245,3 +245,5 @@ export class Jungle {
     this.previousPitch = mult;
   }
 }
+
+export default Jungle;

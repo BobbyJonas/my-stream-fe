@@ -107,11 +107,11 @@ export default Vue.extend({
   created() {
     this.$bus.$on("global/createChannel", this.createDataChannel);
     this.$bus.$on("global/removeChannel", this.removeDataChannel);
-    this.$bus.$emit("connection/addWidgetNum");
+    this.$bus.$emit("connection/addWidgetNum", "TextChatbox");
   },
 
   beforeDestroy() {
-    this.$bus.$emit("connection/removeWidgetNum");
+    this.$bus.$emit("connection/removeWidgetNum", "TextChatbox");
   },
 
   methods: {
@@ -125,7 +125,7 @@ export default Vue.extend({
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
       if (currentDataChannel) currentDataChannel?.close();
 
-      const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
+      const newDataChannel = pcInstance.createDataChannel?.("TextChatbox", {
         protocol: "json",
         maxRetransmits: 5,
       });

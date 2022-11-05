@@ -4,6 +4,7 @@
     "chatbox",
     "compat",
     "lintfix",
+    "noninteractive",
     "opentype",
     "socketio",
     "stylelint",

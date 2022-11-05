@@ -43,12 +43,13 @@
           <span class="separator" />
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
+            title="音调升高"
             class="operation-btn"
             variant="outline-secondary"
             pill
-            @click="onTestClick"
+            @click="onChangeVoicePitchClick"
           >
-            测试
+            <b-icon class="btn-icon" icon="emoji-sunglasses-fill" />
           </b-button>
           <span class="separator" />
           <b-button
@@ -93,21 +94,23 @@ import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
 import { userMediaVideoTrackConstraints } from "../utils";
-import { AudioNodes } from "./effects";
-import socketioService from "~/assets/services/socket-io-client";
+import { AudioNodes } from "./audioNodes";
 
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
 import { makeToast, Properties } from "~/assets/utils/common";
-import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
 export interface IMainContentState {
-  userMediaAvailable: boolean;
+  localAudioAvailable: boolean;
+  localAudioRawStreamRef: Ref<MediaStream | null>;
+  localAudioStreamRef: Ref<MediaStream | null>;
+  audioContext: AudioContext | null;
+  audioNodes: AudioNodes | null;
+
+  localVideoAvailable: boolean;
   localStreamRef: Ref<MediaStream | null>;
   remoteStreamList: Record<string, MediaStream | null>;
-  audioNodes: AudioNodes | null;
-  audioContext: AudioContext | null;
 }
 
 type State = IMainContentState;
@@ -117,9 +120,15 @@ export default Vue.extend({
 
   data() {
     return {
-      userMediaAvailable: false,
-      remoteStreamList: {},
+      localAudioAvailable: false,
+      localAudioRawStreamRef: ref(null),
+      localAudioStreamRef: ref(null),
+      audioContext: null,
       audioNodes: null,
+
+      localVideoAvailable: false,
+      localStreamRef: ref(null),
+      remoteStreamList: {},
     } as State;
   },
 
@@ -135,6 +144,10 @@ export default Vue.extend({
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
+        case CONNECTION_INIT_STATUS.INIT_MAIN_CONTENT: {
+          this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SIDEBAR);
+          break;
+        }
         case CONNECTION_INIT_STATUS.DONE: {
           this.setInitReady(true);
           break;
@@ -149,28 +162,30 @@ export default Vue.extend({
     this.$bus.$on("global/createChannel", this.addLocalChannelToPeer);
     this.$bus.$on("global/removeChannel", this.removeLocalChannelFromPeer);
 
-    this.$bus.$emit("connection/addWidgetNum");
+    console.log("add");
+
+    this.$bus.$emit("connection/addWidgetNum", "MainContent");
   },
 
   mounted() {
-    this.localStreamRef = ref<MediaStream | null>(null);
     this.audioContext = new (window.AudioContext || (window as any)?.webkitAudioContext)();
+    this.getLocalAudio();
     this.getLocalMedia();
   },
 
   beforeDestroy() {
-    if (this.localStreamRef.value) {
-      this.localStreamRef.value?.getTracks().forEach(track => {
-        track?.stop();
-      });
-    }
+    this.closeTracks(this.localStreamRef.value, true);
+    this.closeTracks(this.localAudioRawStreamRef.value, true);
+
     this.audioContext?.close();
-    this.$bus.$emit("connection/removeWidgetNum");
+
+    this.$bus.$emit("connection/removeWidgetNum", "MainContent");
   },
 
   methods: {
     ...mapMutations({
       setInitReady: "connection/setInitReady",
+      setCurrentStep: "connection/setCurrentStep",
       setVideoSource: "connection/setVideoSource",
     }),
     ...mapActions({
@@ -181,9 +196,39 @@ export default Vue.extend({
       this.$delete(this.remoteStreamList, from);
     },
 
+    getLocalAudio(): void {
+      window.navigator.mediaDevices
+        .getUserMedia({
+          video: false,
+          audio: true,
+        })
+        .then(stream => {
+          this.localAudioAvailable = true;
+          this.localAudioRawStreamRef = ref(stream);
+          if (!this.audioContext) {
+            this.localAudioStreamRef = ref(stream);
+          } else {
+            this.audioNodes = new AudioNodes(stream, this.audioContext, [
+              // "tunachorus",
+              // "tunaphaser",
+              // "tunawahwah",
+              // "tunaoverdrive",
+              // "tunatremolo",
+              "pitch",
+            ]);
+            // this.audioNodes.loadPresets(this.audioNodes.funcPresets.pitchHigh);
+            this.localAudioStreamRef = ref(this.audioNodes.stream);
+          }
+        })
+        .catch(() => {
+          this.localAudioAvailable = false;
+        });
+    },
+
     getLocalCameraMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
         if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getUserMedia({
             video: {
@@ -196,23 +241,16 @@ export default Vue.extend({
                 max: userMediaVideoTrackConstraints["1080p"].height,
               },
             },
-            audio: true,
+            audio: false,
           })
           .then(stream => {
-            if (!this.audioNodes) {
-              this.audioNodes = new AudioNodes(stream, this.audioContext!, [
-                // "tunachorus",
-                // "tunaphaser",
-                // "tunawahwah",
-                // "tunaoverdrive",
-                // "tunatremolo",
-                "pitch",
-              ]);
-            }
-            // this.audioNodes.loadPresets(this.audioNodes.funcPresets.pitchHigh);
-            const videoTracks = stream.getVideoTracks();
-            this.audioNodes.stream?.addTrack(videoTracks[0]);
-            resolve(this.audioNodes.stream!);
+            this.localVideoAvailable = true;
+            const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
+            if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
+            resolve(stream);
+          })
+          .catch(err => {
+            reject(err);
           });
       });
     },
@@ -220,18 +258,43 @@ export default Vue.extend({
     getLocalDisplayMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
         if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getDisplayMedia({
             video: true,
-            audio: true,
+            audio: false,
           })
           .then(stream => {
+            this.localVideoAvailable = true;
+            const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
+            console.log(audioTracks);
+
+            if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
             resolve(stream);
           })
           .catch(err => {
             reject(err);
           });
       });
+    },
+
+    closeTracks(value: MediaStream | null, audio = false, video = true): void {
+      if (audio && video) {
+        value?.getTracks().forEach(track => {
+          track?.stop();
+        });
+        return;
+      }
+      if (audio) {
+        value?.getAudioTracks().forEach(track => {
+          track?.stop();
+        });
+      }
+      if (video) {
+        value?.getVideoTracks().forEach(track => {
+          track?.stop();
+        });
+      }
     },
 
     getLocalMedia(): Promise<void> {
@@ -300,11 +363,7 @@ export default Vue.extend({
     onSwitchMediaSource(): void {
       this.$bus.$emit("connection/stop");
       this.$nextTick(() => {
-        if (this.localStreamRef.value) {
-          this.localStreamRef.value?.getTracks().forEach(track => {
-            track?.stop();
-          });
-        }
+        this.closeTracks(this.localStreamRef.value);
         this.localStreamRef = ref(null);
         this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
         this.getLocalMedia().then(() => {
@@ -320,13 +379,8 @@ export default Vue.extend({
       });
     },
 
-    onTestClick(): void {
-      console.log(this.audioNodes);
-      console.log(this.audioNodes?.stream);
+    onChangeVoicePitchClick(): void {
       this.audioNodes?.pitchJungle?.setPitchOffset(1);
-      const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
-      if (localVideoControl && this.audioNodes?.stream)
-        localVideoControl.srcObject = this.audioNodes?.stream;
     },
   },
 });

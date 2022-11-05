@@ -111,7 +111,7 @@ export default Vue.extend({
     // console.log(adapter.browserDetails.browser);
 
     setTimeout(() => {
-      this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
+      this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_MAIN_CONTENT);
     }, 0);
   },
 

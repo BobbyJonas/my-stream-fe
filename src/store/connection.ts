@@ -2,9 +2,11 @@ import { Module, VuexModule, Mutation, Action, MutationAction } from "vuex-modul
 
 export enum CONNECTION_INIT_STATUS {
   "PREPARED" = 0,
-  "INIT_SOCKET" = 1,
-  "CONFIRM_USER" = 2,
-  "DONE" = 3,
+  "INIT_MAIN_CONTENT" = 1,
+  "INIT_SIDEBAR" = 2,
+  "INIT_SOCKET" = 3,
+  "CONFIRM_USER" = 4,
+  "DONE" = 5,
 }
 
 @Module({
@@ -23,6 +25,8 @@ export default class ConnectionStore extends VuexModule {
 
   @Mutation
   public addWidgetNum(): void {
+    console.log("add", this.widgetNum + 1);
+
     this.widgetNum++;
   }
 

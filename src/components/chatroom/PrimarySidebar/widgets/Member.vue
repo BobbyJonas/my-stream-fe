@@ -108,11 +108,11 @@ export default Vue.extend({
   created() {
     this.$bus.$on("global/createChannel", this.createDataChannel);
     this.$bus.$on("global/removeChannel", this.removeDataChannel);
-    this.$bus.$emit("connection/addWidgetNum");
+    this.$bus.$emit("connection/addWidgetNum", "Member");
   },
 
   beforeDestroy() {
-    this.$bus.$emit("connection/removeWidgetNum");
+    this.$bus.$emit("connection/removeWidgetNum", "Member");
   },
 
   methods: {
