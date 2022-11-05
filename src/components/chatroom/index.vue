@@ -298,9 +298,9 @@ export default Vue.extend({
     },
 
     onRemoteDisconnect(args: { from: string }) {
+      this.$bus.$emit("global/removeChannel", args);
       this.pcInstanceMap[args.from]?.close();
       this.$delete(this.pcInstanceMap, args.from);
-      this.$bus.$emit("global/removeChannel", args);
     },
 
     globalConnectionStop() {

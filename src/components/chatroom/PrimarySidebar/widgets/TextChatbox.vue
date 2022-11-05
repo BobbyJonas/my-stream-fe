@@ -77,6 +77,7 @@ export interface ITextChatboxState {
   sendContentInputEnabled: boolean;
 
   dataChannelMap: Record<string, RTCDataChannel | null>;
+  onChannelConnectedMap: Record<string, (e: RTCDataChannelEvent) => void>;
 }
 
 type State = ITextChatboxState;
@@ -94,6 +95,7 @@ export default Vue.extend({
       sendContentInputEnabled: false,
 
       dataChannelMap: {},
+      onChannelConnectedMap: {},
     } as State;
   },
 
@@ -134,26 +136,30 @@ export default Vue.extend({
       newDataChannel.onmessage = this.onRemoteMessage;
       this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
 
-      pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
-        this.onRemoteChannelConnected(e, receiveSocketId);
+      this.onChannelConnectedMap[receiveSocketId] = (e: RTCDataChannelEvent) => {
+        this.onChannelConnected(e, receiveSocketId);
       };
+      pcInstance.addEventListener("datachannel", this.onChannelConnectedMap[receiveSocketId]);
       next();
     },
 
     removeDataChannel({ from }: { from: string }): void {
       this.dataChannelMap[from]?.close();
       this.$delete(this.dataChannelMap, from);
+      this.$delete(this.onChannelConnectedMap, from);
     },
 
-    onRemoteChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {
+    onChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {
       const remoteDataChannel = e.channel;
-      remoteDataChannel.onopen = this.onChannelStatusChange;
-      remoteDataChannel.onclose = this.onChannelStatusChange;
-      remoteDataChannel.onmessage = this.onRemoteMessage;
-      this.$set(this.dataChannelMap, receiveSocketId, remoteDataChannel);
+      if (remoteDataChannel && remoteDataChannel.label === "TextChatbox") {
+        remoteDataChannel.onopen = this.onChannelStatusChange;
+        remoteDataChannel.onclose = this.onChannelStatusChange;
+        remoteDataChannel.onmessage = this.onRemoteMessage;
+        this.$set(this.dataChannelMap, receiveSocketId, remoteDataChannel);
+      }
     },
 
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
     onChannelStatusChange(event: Event): void {},
 
     onRemoteMessage(e: MessageEvent): void {
