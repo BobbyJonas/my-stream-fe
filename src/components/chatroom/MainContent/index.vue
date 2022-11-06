@@ -272,8 +272,6 @@ export default Vue.extend({
           .then(stream => {
             this.localVideoAvailable = true;
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
-            console.log(audioTracks);
-
             if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
             resolve(stream);
           })

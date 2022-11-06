@@ -1,7 +1,7 @@
 <template>
   <div class="empty-container">
     <div class="empty-content">
-      <b-icon class="empty-icon" icon="archive" />
+      <b-icon class="empty-icon" :icon="icon" />
       <p class="empty-label">{{ message }}</p>
     </div>
   </div>
@@ -23,6 +23,11 @@ export default Vue.extend({
       required: false,
       type: String,
       default: "没有内容",
+    },
+    icon: {
+      required: false,
+      type: String,
+      default: "archive",
     },
   },
 

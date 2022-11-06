@@ -1,5 +1,21 @@
 <template>
   <div class="widget-container">
+    <div v-if="!uploadComplete || !downloadComplete" :style="{ padding: '1rem 1.5rem' }">
+      <b-progress
+        v-if="!uploadComplete"
+        :value="uploadOffset"
+        :max="currentUploadInfo ? currentUploadInfo.size : Infinity"
+        show-progress
+        animated
+      />
+      <b-progress
+        v-if="!downloadComplete"
+        :value="downloadOffset"
+        :max="currentDownloadInfo ? currentDownloadInfo.size : Infinity"
+        show-progress
+        animated
+      />
+    </div>
     <dl class="file-share-container">
       <dt class="header">
         <h4 class="title">来自成员</h4>
@@ -11,10 +27,16 @@
           <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
         </b-button>
       </dt>
-      <dd class="file-list">
+      <dd v-if="fileShareList && fileShareList.length > 0" class="file-list">
         <div v-for="item in fileShareList" :key="item.id" class="list-item">
           <h5 class="author">{{ item.user && item.user.nickname ? item.user.nickname : "" }}</h5>
-          <a class="file" href="#" role="button" :tabindex="0">
+          <a
+            class="file"
+            href="javascript: void(0)"
+            role="button"
+            :tabindex="0"
+            @click="!item.invalid && onApplyDownload(item)"
+          >
             <img class="icon" :src="`/icon/file/${getFileNameExt(item.name)}.svg`" alt="ext-icon" />
             <div class="info">
               <p class="name">{{ item.name }}</p>
@@ -25,6 +47,7 @@
           <p class="date">{{ date2Text(item.shelveTime) }}</p>
         </div>
       </dd>
+      <Empty v-else icon="folder2-open" message="没有来自成员的共享文件" />
     </dl>
     <dl class="file-share-container">
       <dt class="header">
@@ -37,7 +60,24 @@
           <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
         </b-button>
       </dt>
-      <dd class="file-list"></dd>
+      <dd class="file-list">
+        <div v-if="currentUploadInfo" class="list-item">
+          <a class="file" href="javascript: void(0)" role="button" :tabindex="0">
+            <img
+              class="icon"
+              :src="`/icon/file/${getFileNameExt(currentUploadInfo.name)}.svg`"
+              alt="ext-icon"
+            />
+            <div class="info">
+              <p class="name">{{ currentUploadInfo.name }}</p>
+              <span :style="{ display: 'none' }"> - </span>
+              <p>{{ size2Text(currentUploadInfo.size) }}</p>
+            </div>
+          </a>
+          <p class="date">{{ date2Text(currentUploadInfo.shelveTime) }}</p>
+        </div>
+        <Empty v-else icon="file-earmark-break" message="你没有设置共享文件" />
+      </dd>
       <div class="upload-area">
         <b-form-file
           v-model="fileToUpload"
@@ -68,6 +108,7 @@ import { mapState } from "vuex";
 import { v4 as uuidv4 } from "uuid";
 
 import socketioService from "~/assets/services/socket-io-client";
+import Empty from "@/components/common/Empty.vue";
 
 import { makeToast, Properties } from "~/assets/utils/common";
 import ChatroomStore from "~/store/chatroom";
@@ -79,16 +120,20 @@ export interface FileDescription {
   lastModified: number;
   name: string;
   size: number;
+  from: string;
 }
 
 export type FileShareListItem = FileDescription & {
   user?: Partial<IUserModel>;
   shelveTime: number;
+  invalid?: boolean;
 };
+
 // 向现有成员，展示文件信息
 export interface ISendMsgShelve {
   type: "shelve";
   content: FileShareListItem;
+  from: string;
 }
 
 // 告知成员，现有文件取消展示
@@ -97,6 +142,7 @@ export interface ISendMsgUnshelve {
   content: {
     id: string;
   };
+  from: string;
 }
 
 // 申请文件下载
@@ -105,20 +151,33 @@ export interface ISendMsgApply {
   content: {
     id: string;
   };
+  from: string;
 }
 
-export type ISendMsgType = ISendMsgShelve | ISendMsgUnshelve | ISendMsgApply;
+// 拒绝文件下载
+export interface ISendMsgDeny {
+  type: "deny";
+  content: {
+    id: string;
+  };
+  from: string;
+}
+
+export type ISendMsgType = ISendMsgShelve | ISendMsgUnshelve | ISendMsgApply | ISendMsgDeny;
 
 export interface IFileShareState {
   currentSocketId: string;
 
   fileToUpload: File | null;
-  currentUpload: File | null;
-  currentUploadInfo: FileDescription | null;
-  currentDownload: FileDescription | null;
-  currentDownloadBuffer: BlobPart[];
+  currentUploadFile: File | null;
+  currentUploadInfo: FileShareListItem | null;
+  uploadOffset: number;
+  uploadComplete: boolean;
 
-  bufferSize: number;
+  currentDownloadInfo: FileDescription | null;
+  currentDownloadBuffer: BlobPart[];
+  downloadOffset: number;
+  downloadComplete: boolean;
 
   dataChannelMap: Record<string, RTCDataChannel | null>;
   onChannelConnectedMap: Record<string, (e: RTCDataChannelEvent) => void>;
@@ -129,19 +188,26 @@ export interface IFileShareState {
 type State = IFileShareState;
 
 export default Vue.extend({
-  components: {} as Record<string, Component>,
+  components: {
+    Empty,
+  } as Record<string, Component>,
 
   data() {
     return {
       currentSocketId: "",
 
       fileToUpload: null,
-      currentUpload: null,
+      currentUploadFile: null,
       currentUploadInfo: null,
-      currentDownload: null,
-      currentDownloadBuffer: [],
+      uploadOffset: 0,
 
-      bufferSize: 65535,
+      uploadComplete: true,
+
+      currentDownloadInfo: null,
+      currentDownloadBuffer: [],
+      downloadOffset: 0,
+      downloadComplete: true,
+
       dataChannelMap: {},
       onChannelConnectedMap: {},
 
@@ -185,12 +251,8 @@ export default Vue.extend({
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
       if (currentDataChannel) currentDataChannel?.close();
 
-      this.bufferSize = pcInstance.sctp?.maxMessageSize || 65535;
-      const newDataChannel = pcInstance.createDataChannel?.("FileShare", {
-        maxRetransmits: 5,
-      });
+      const newDataChannel = pcInstance.createDataChannel?.("FileShare");
       newDataChannel.binaryType = "arraybuffer";
-      newDataChannel.bufferedAmountLowThreshold = this.bufferSize / 2;
 
       newDataChannel.onopen = this.onChannelStatusChange;
       newDataChannel.onclose = this.onChannelStatusChange;
@@ -209,6 +271,16 @@ export default Vue.extend({
       this.dataChannelMap[from]?.close();
       this.$delete(this.dataChannelMap, from);
       this.$delete(this.onChannelConnectedMap, from);
+      if (!this.downloadComplete && from === this.currentDownloadInfo?.from) {
+        makeToast("下载发生错误", "远程用户已下线", "danger");
+        this.downloadComplete = true;
+        this.currentDownloadInfo = null;
+      }
+      if (!this.uploadComplete && from === this.currentUploadInfo?.from) {
+        makeToast("上传发生错误", "远程用户已下线", "danger");
+        this.uploadComplete = true;
+        this.currentUploadInfo = null;
+      }
     },
 
     // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
@@ -218,7 +290,6 @@ export default Vue.extend({
       const remoteDataChannel = e.channel;
       if (remoteDataChannel && remoteDataChannel.label === "FileShare") {
         remoteDataChannel.binaryType = "arraybuffer";
-        remoteDataChannel.bufferedAmountLowThreshold = this.bufferSize / 2;
 
         remoteDataChannel.onopen = this.onChannelStatusChange;
         remoteDataChannel.onclose = this.onChannelStatusChange;
@@ -228,44 +299,97 @@ export default Vue.extend({
     },
 
     onRemoteMessage(e: MessageEvent): void {
-      console.log(e.data);
       if (typeof e.data === "string") {
-        if (this.currentDownload) {
-          this.currentDownload = null;
-          makeToast("下载错误", "文件下载发生连续性错误", "danger");
-          return;
-        }
         const data: ISendMsgType = JSON.parse(e.data);
-        console.log(data.content);
 
         switch (data.type) {
           case "shelve": {
             this.fileShareList.push({
               ...data.content,
-              shelveTime: Date.now(),
+              shelveTime: data.content.shelveTime,
               user: { nickname: this.currentUserRole.nickname },
             });
             break;
           }
           case "unshelve": {
+            if (!this.downloadComplete && data.from === this.currentDownloadInfo?.from) {
+              this.currentDownloadInfo = null;
+              this.currentDownloadBuffer = [];
+              makeToast("下载错误", "文件下载发生连续性错误", "danger");
+            }
+            const fileIndex = this.fileShareList?.findIndex(item => item.id === data.content.id);
+            if (fileIndex >= 0) {
+              this.$set(this.fileShareList, fileIndex, {
+                ...this.fileShareList[fileIndex],
+                invalid: true,
+              });
+            }
             break;
           }
           case "apply": {
+            if (!this.downloadComplete || !this.uploadComplete) {
+              makeToast("警告", "当前存在文件传输任务，已自动拒绝用户申请文件传输", "warning");
+              this.sendMessage(
+                JSON.stringify({
+                  type: "deny",
+                  content: { id: data.content.id },
+                  from: this.currentSocketId,
+                } as ISendMsgDeny),
+                data.from
+              );
+              break;
+            }
+            if (data.content.id === this.currentUploadInfo?.id) {
+              this.uploadComplete = false;
+              this.uploadOffset = 0;
+              this.startUpload(data.from);
+            } else {
+              // 请求文件 id 不存在
+              this.sendMessage(
+                JSON.stringify({
+                  type: "deny",
+                  content: { id: data.content.id },
+                  from: this.currentSocketId,
+                } as ISendMsgDeny),
+                data.from
+              );
+            }
+            break;
+          }
+          case "deny": {
+            this.currentDownloadBuffer = [];
+            this.downloadOffset = 0;
+            this.downloadComplete = true;
+            makeToast("错误", "用户拒绝下载请求", "warning");
             break;
           }
           default:
             break;
         }
+      } else {
+        // eslint-disable-next-line no-lonely-if
+        if (!this.currentDownloadInfo || this.downloadComplete) {
+          makeToast("下载错误", "文件下载发生连续性错误", "danger");
+        } else {
+          this.startDownload(e.data);
+        }
       }
     },
 
-    sendMessage(data: ArrayBuffer | string) {
-      Object.keys(this.dataChannelMap).forEach(socketId => {
-        const dataChannel = this.dataChannelMap[socketId];
+    sendMessage(data: ArrayBuffer | string, to?: string) {
+      if (!to) {
+        Object.keys(this.dataChannelMap).forEach(socketId => {
+          const dataChannel = this.dataChannelMap[socketId];
+          if (dataChannel?.readyState === "open") {
+            dataChannel.send(data as any);
+          }
+        });
+      } else {
+        const dataChannel = this.dataChannelMap[to];
         if (dataChannel?.readyState === "open") {
           dataChannel.send(data as any);
         }
-      });
+      }
     },
 
     getFileNameExt(filename: string): string {
@@ -290,22 +414,127 @@ export default Vue.extend({
       return `${Math.floor(value * 100) / 100} ${units[index]}`;
     },
 
+    /** 按钮点击 */
+
     onUploadBtnClick(): void {
       if (this.fileToUpload) {
-        this.currentUpload = this.fileToUpload;
-        this.fileToUpload = null;
-        const currentUploadInfo: FileDescription = {
-          lastModified: this.currentUpload.lastModified,
-          name: this.currentUpload.name,
+        this.currentUploadFile = this.fileToUpload;
+        this.currentUploadInfo = {
+          lastModified: this.currentUploadFile.lastModified,
+          name: this.currentUploadFile.name,
           id: uuidv4(),
-          size: this.currentUpload.size,
+          size: this.currentUploadFile.size,
+          from: this.currentSocketId,
+          shelveTime: Date.now(),
         };
+        this.fileToUpload = null;
         this.sendMessage(
           JSON.stringify({
             type: "shelve",
-            content: currentUploadInfo,
+            content: this.currentUploadInfo,
+            from: this.currentSocketId,
           } as ISendMsgShelve)
         );
+      }
+    },
+
+    onApplyDownload(item: FileShareListItem): void {
+      if (!this.downloadComplete || !this.uploadComplete) {
+        makeToast("警告", "请先等待当前传输任务完成之后再进行下载", "warning");
+        return;
+      }
+      this.sendMessage(
+        JSON.stringify({
+          type: "apply",
+          content: { id: item.id },
+          from: this.currentSocketId,
+        } as ISendMsgApply),
+        item.from
+      );
+      this.currentDownloadInfo = { ...item };
+      this.currentDownloadBuffer = [];
+      this.downloadOffset = 0;
+      this.downloadComplete = false;
+    },
+
+    /** 上传进程 */
+
+    onUploadFailed(): void {},
+
+    startUpload(to: string): void {
+      const file = this.currentUploadFile;
+      const pcInstance = window.__MY_STREAM__.$pcInstanceMap[to];
+      const dataChannel = this.dataChannelMap[to];
+
+      if (!file || !(dataChannel?.readyState === "open")) {
+        makeToast("发生错误", "文件或接口不存在", "danger");
+        return;
+      }
+
+      const fileReader = new FileReader();
+      const bufferSize = pcInstance?.sctp?.maxMessageSize || 65535;
+      dataChannel.bufferedAmountLowThreshold = bufferSize / 2;
+
+      this.uploadOffset = 0;
+
+      const nextSlice = (currentOffset: number) => {
+        const slice = file.slice(this.uploadOffset, currentOffset + bufferSize);
+        fileReader.readAsArrayBuffer(slice);
+      };
+
+      fileReader.onload = e => {
+        if (this.uploadComplete) return;
+        const buffer = e.target!.result as ArrayBuffer;
+
+        try {
+          this.sendMessage(buffer, to);
+        } catch {
+          this.onUploadFailed();
+          return;
+        }
+        this.uploadOffset += buffer.byteLength;
+
+        if (this.uploadOffset >= file.size) {
+          this.uploadComplete = true;
+          makeToast("传输完成", `文件 ${this.currentUploadInfo?.name || ""} 已传输完成`, "success");
+        } else if (dataChannel.bufferedAmount < bufferSize / 2) {
+          nextSlice(this.uploadOffset);
+        }
+      };
+
+      dataChannel.onbufferedamountlow = () => nextSlice(this.uploadOffset);
+
+      nextSlice(0);
+    },
+
+    /** 下载进程 */
+
+    onDownloadFailed(): void {},
+
+    startDownload(data: ArrayBuffer): void {
+      this.currentDownloadBuffer.push(data);
+      this.downloadOffset += data.byteLength;
+
+      if (!this.currentDownloadInfo?.size) {
+        this.downloadComplete = true;
+        this.currentDownloadInfo = null;
+        return;
+      }
+
+      if (this.downloadOffset >= this.currentDownloadInfo.size) {
+        makeToast("下载完成", `文件 ${this.currentDownloadInfo.name} 已成功下载`, "success");
+        this.downloadComplete = true;
+        const blob = new Blob(this.currentDownloadBuffer);
+        const blobUrl = URL.createObjectURL(blob);
+
+        const element = document.createElement("a");
+        element.setAttribute("href", blobUrl);
+        element.setAttribute("download", this.currentDownloadInfo.name);
+
+        element.style.display = "none";
+        element.click();
+
+        this.currentDownloadInfo = null;
       }
     },
   },
