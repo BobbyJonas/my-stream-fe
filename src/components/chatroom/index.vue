@@ -103,6 +103,7 @@ export default Vue.extend({
     this.$bus.$on("connection/removeWidgetNum", this.removeWidgetNum);
 
     this.$bus.$on("connection/start", this.globalConnectionRestart);
+    this.$bus.$on("connection/refresh", this.globalConnectionRefresh);
     this.$bus.$on("connection/stop", this.globalConnectionStop);
   },
 
@@ -124,6 +125,7 @@ export default Vue.extend({
     this.$bus.$off("global/removeChannel");
 
     this.$bus.$off("connection/start");
+    this.$bus.$off("connection/refresh");
     this.$bus.$off("connection/stop");
 
     this.$bus.$off("connection/addWidgetNum");
@@ -165,12 +167,13 @@ export default Vue.extend({
               .map((item): Promise<void> => {
                 const socketId = item.socketId;
                 if (socketId === socketioService.socket.id) return Promise.resolve();
-                let pcInstance = pcInstanceMap?.[socketId];
-
-                if (!(pcInstance?.connectionState === "connected")) {
-                  pcInstance = new window.RTCPeerConnection({
+                const pcInstance =
+                  pcInstanceMap?.[socketId] ||
+                  new window.RTCPeerConnection({
                     iceServers: iceServerPublicList.map(item => ({ urls: item })),
                   });
+
+                if (pcInstance !== pcInstanceMap[socketId]) {
                   pcInstance.onicecandidate = this.onRtcIceCandidate;
                   this.$set(this.pcInstanceMap, socketId, pcInstance);
                   this.setPcInstanceMap(this.pcInstanceMap);
@@ -178,17 +181,20 @@ export default Vue.extend({
                     { $pcInstanceMap: this.pcInstanceMap },
                     window.__MY_STREAM__ || {}
                   );
-                }
-                return new Promise((resolve, reject) => {
-                  let readyWidgetNum = 0;
-                  const internalResolve = () => {
-                    readyWidgetNum++;
-                    console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
 
-                    if (readyWidgetNum >= this.widgetNum) return resolve();
-                  };
-                  this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
-                });
+                  return new Promise((resolve, reject) => {
+                    let readyWidgetNum = 0;
+                    const internalResolve = () => {
+                      readyWidgetNum++;
+                      console.log("readyWidget:", readyWidgetNum, "/", this.widgetNum);
+
+                      if (readyWidgetNum >= this.widgetNum) return resolve();
+                    };
+                    this.$bus.$emit("global/createChannel", pcInstance, socketId, internalResolve);
+                  });
+                } else {
+                  return Promise.resolve();
+                }
               })
           ).then(() => {
             const receiverList = args.slice(0, currentIndex).map(item => item.socketId);
@@ -206,11 +212,14 @@ export default Vue.extend({
       console.log("on-offer");
 
       const { data, from } = args;
-      const pcInstance: RTCPeerConnection = new window.RTCPeerConnection({
-        iceServers: iceServerPublicList.map(item => ({ urls: item })),
-      });
+      const pcInstance: RTCPeerConnection =
+        this.pcInstanceMap[from] ||
+        new window.RTCPeerConnection({
+          iceServers: iceServerPublicList.map(item => ({ urls: item })),
+        });
 
       pcInstance.onicecandidate = this.onRtcIceCandidate;
+      pcInstance.setLocalDescription(undefined);
       pcInstance.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)));
 
       new Promise<void>((resolve, reject) => {
@@ -314,7 +323,7 @@ export default Vue.extend({
     },
 
     globalConnectionRestart() {
-      this.globalConnectionStop();
+      // this.globalConnectionStop();
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
       const socketIdList = Object.keys(pcInstanceMap).map(
         item => ({ socketId: item } as IConnectionModel)
@@ -323,6 +332,14 @@ export default Vue.extend({
         ...socketIdList,
         { socketId: socketioService.socket.id } as IConnectionModel,
       ]);
+    },
+
+    globalConnectionRefresh() {
+      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
+
+      Object.keys(pcInstanceMap).forEach(socketId => {
+        this.createOffer(socketId);
+      });
     },
   },
 });

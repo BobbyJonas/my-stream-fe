@@ -11,7 +11,20 @@
           <b-icon class="btn-icon" icon="arrow-repeat"></b-icon>
         </b-button>
       </dt>
-      <dd class="file-list"></dd>
+      <dd class="file-list">
+        <div v-for="item in fileShareList" :key="item.id" class="list-item">
+          <h5 class="author">{{ item.user && item.user.nickname ? item.user.nickname : "" }}</h5>
+          <a class="file" href="#" role="button" :tabindex="0">
+            <img class="icon" :src="`/icon/file/${getFileNameExt(item.name)}.svg`" alt="ext-icon" />
+            <div class="info">
+              <p class="name">{{ item.name }}</p>
+              <span :style="{ display: 'none' }"> - </span>
+              <p>{{ size2Text(item.size) }}</p>
+            </div>
+          </a>
+          <p class="date">{{ date2Text(item.shelveTime) }}</p>
+        </div>
+      </dd>
     </dl>
     <dl class="file-share-container">
       <dt class="header">
@@ -50,6 +63,7 @@
 
 <script lang="ts">
 import Vue, { Component } from "vue";
+import moment from "moment";
 import { mapState } from "vuex";
 import { v4 as uuidv4 } from "uuid";
 
@@ -58,6 +72,7 @@ import socketioService from "~/assets/services/socket-io-client";
 import { makeToast, Properties } from "~/assets/utils/common";
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
+import type { IUserModel } from "~/api/modules/mongodb/models/user";
 
 export interface FileDescription {
   id: string;
@@ -65,10 +80,15 @@ export interface FileDescription {
   name: string;
   size: number;
 }
+
+export type FileShareListItem = FileDescription & {
+  user?: Partial<IUserModel>;
+  shelveTime: number;
+};
 // 向现有成员，展示文件信息
 export interface ISendMsgShelve {
   type: "shelve";
-  content: FileDescription;
+  content: FileShareListItem;
 }
 
 // 告知成员，现有文件取消展示
@@ -102,6 +122,8 @@ export interface IFileShareState {
 
   dataChannelMap: Record<string, RTCDataChannel | null>;
   onChannelConnectedMap: Record<string, (e: RTCDataChannelEvent) => void>;
+
+  fileShareList: Array<FileShareListItem>;
 }
 
 type State = IFileShareState;
@@ -122,6 +144,8 @@ export default Vue.extend({
       bufferSize: 65535,
       dataChannelMap: {},
       onChannelConnectedMap: {},
+
+      fileShareList: [],
     } as State;
   },
 
@@ -212,8 +236,15 @@ export default Vue.extend({
           return;
         }
         const data: ISendMsgType = JSON.parse(e.data);
+        console.log(data.content);
+
         switch (data.type) {
           case "shelve": {
+            this.fileShareList.push({
+              ...data.content,
+              shelveTime: Date.now(),
+              user: { nickname: this.currentUserRole.nickname },
+            });
             break;
           }
           case "unshelve": {
@@ -235,6 +266,28 @@ export default Vue.extend({
           dataChannel.send(data as any);
         }
       });
+    },
+
+    getFileNameExt(filename: string): string {
+      const dotIndex = filename.lastIndexOf(".");
+      if (dotIndex < 0) return "";
+      return filename.substring(dotIndex + 1);
+    },
+
+    date2Text(value: any): string {
+      return moment(value).format("HH:mm:ss");
+    },
+
+    size2Text(value: number): string {
+      const units = ["Bytes", "KB", "MB", "GB", "TB", "PB"];
+      let index = 0;
+      let nextValue = value / 1024;
+      while (nextValue > 1) {
+        index++;
+        value = nextValue;
+        nextValue = value / 1024;
+      }
+      return `${Math.floor(value * 100) / 100} ${units[index]}`;
     },
 
     onUploadBtnClick(): void {
@@ -276,18 +329,21 @@ export default Vue.extend({
   overflow: hidden;
 
   .file-share-container {
-    @apply px-6 py-4;
+    @apply py-4;
 
     flex: 1;
+    height: 0;
     display: flex;
     flex-direction: column;
     font-size: @font-size-sm;
 
     .header {
+      @apply px-6;
+
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 18px;
+      margin-bottom: 12px;
 
       .title {
         display: inline;
@@ -304,12 +360,52 @@ export default Vue.extend({
     }
 
     .file-list {
+      @apply px-6;
+
       flex: 1;
       margin-bottom: 6px;
+      overflow: hidden auto;
+
+      .list-item {
+        margin-bottom: 6px;
+        list-style: none;
+        .clear();
+
+        .author {
+          margin-bottom: 6px;
+          color: darkgrey;
+        }
+
+        .file {
+          display: flex;
+          align-items: center;
+          padding: 9px 12px 10px;
+          background-color: rgba(grey, 25%);
+          border-radius: 4px;
+          transition: background-color 0.3s;
+
+          &:hover {
+            background-color: rgba(darkgrey, 25%);
+            color: lightgrey;
+            text-decoration: none;
+          }
+
+          .icon {
+            height: 36px;
+            margin-right: 12px;
+          }
+        }
+
+        .date {
+          margin-top: 4px;
+          color: grey;
+          float: right;
+        }
+      }
     }
 
     .upload-area {
-      @apply px-4;
+      @apply px-10;
 
       display: flex;
       flex-direction: column;

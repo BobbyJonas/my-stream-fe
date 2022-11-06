@@ -109,12 +109,13 @@ npm run build
 npm run start
 ```
 
----
-
 ## 引用
 
 > file-icon-vectors: https://github.com/dmhendricks/file-icon-vectors
+>
 > Robot Avatar Icons: https://dighital.com/icon-pack/icons/flat-icons/robot-avatar-icons/
+
+---
 
 App built by NuxtJS.
 

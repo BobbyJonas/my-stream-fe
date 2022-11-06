@@ -60,7 +60,7 @@ import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
 type IConnectionPopulateModel = Omit<IConnectionModel, "userId"> & { userId: IUserModel };
-type IMemberItem = IUserModel & { time: number; socketId: string; online: boolean };
+export type IMemberItem = IUserModel & { time: number; socketId: string; online: boolean };
 
 export interface IMemberState {
   isLoading: boolean;
@@ -182,6 +182,7 @@ export default Vue.extend({
             else offlineList.push(item);
           });
           this.$set(this, "memberList", [...currentUser, ...onlineList, ...offlineList]);
+          window.__MY_STREAM__.memberList = this.memberList;
         })
         .finally(() => {
           this.isLoading = false;
