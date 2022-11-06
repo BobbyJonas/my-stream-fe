@@ -22,12 +22,25 @@
           <span class="separator" />
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
-            title="语音开启"
+            :title="!micMuted ? '语音开启' : '语音关闭'"
             class="operation-btn"
             variant="outline-secondary"
             pill
+            @click="onSwitchMicStatus"
           >
-            <b-icon class="btn-icon" icon="mic-fill" />
+            <b-icon v-if="!micMuted" class="btn-icon" icon="mic-fill" />
+            <b-icon v-else class="btn-icon" icon="mic-mute" />
+          </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            :title="!speakerMuted ? '关闭扬声器' : '打开扬声器'"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onSwitchSpeakerStatus"
+          >
+            <b-icon v-if="!speakerMuted" class="btn-icon" icon="volume-up-fill" />
+            <b-icon v-else class="btn-icon" icon="volume-mute" />
           </b-button>
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
@@ -43,10 +56,22 @@
           <span class="separator" />
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
+            title="音调升高"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onChangeVoicePitchClick"
+          >
+            <b-icon class="btn-icon" icon="emoji-sunglasses-fill" />
+          </b-button>
+          <span class="separator" />
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
             title="结束通话"
             class="operation-btn"
             variant="danger"
             pill
+            @click="onExitRoom"
           >
             <b-icon class="btn-icon" icon="telephone-fill" />
           </b-button>
@@ -65,6 +90,7 @@
           v-for="item in Object.keys(remoteStreamList)"
           :ref="`remoteVideoRef_${item}`"
           :key="item"
+          :muted="speakerMuted"
           class="video-container"
           autoplay
           playsinline
@@ -81,19 +107,29 @@ import Vue, { Component } from "vue";
 import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
-import socketioService from "~/assets/services/socket-io-client";
+import { userMediaVideoTrackConstraints } from "../utils";
+import { AudioNodeList } from "./audioNodeList";
 
+import PitchNode from "./extensions/pitch";
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
-import { userMediaVideoTrackConstraints } from "~/pages/chatroom/utils";
 import { makeToast, Properties } from "~/assets/utils/common";
-import { IConnectionModel } from "~/api/modules/mongodb/models/connection";
 
 export interface IMainContentState {
-  userMediaAvailable: boolean;
+  localAudioAvailable: boolean;
+  localAudioRawStreamRef: Ref<MediaStream | null>;
+  localAudioStreamRef: Ref<MediaStream | null>;
+  audioContext: AudioContext | null;
+  audioNodeList: AudioNodeList | null;
+
+  micMuted: boolean;
+  speakerMuted: boolean;
+
+  localVideoAvailable: boolean;
   localStreamRef: Ref<MediaStream | null>;
   remoteStreamList: Record<string, MediaStream | null>;
+  onRemoteTrackMap: Record<string, (e: RTCTrackEvent) => void>;
 }
 
 type State = IMainContentState;
@@ -103,8 +139,19 @@ export default Vue.extend({
 
   data() {
     return {
-      userMediaAvailable: false,
+      localAudioAvailable: false,
+      localAudioRawStreamRef: ref(null),
+      localAudioStreamRef: ref(null),
+      audioContext: null,
+      audioNodeList: null,
+
+      micMuted: false,
+      speakerMuted: false,
+
+      localVideoAvailable: false,
+      localStreamRef: ref(null),
       remoteStreamList: {},
+      onRemoteTrackMap: {},
     } as State;
   },
 
@@ -120,6 +167,10 @@ export default Vue.extend({
   watch: {
     currentStep(currentValue) {
       switch (currentValue) {
+        case CONNECTION_INIT_STATUS.INIT_MAIN_CONTENT: {
+          this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SIDEBAR);
+          break;
+        }
         case CONNECTION_INIT_STATUS.DONE: {
           this.setInitReady(true);
           break;
@@ -134,21 +185,34 @@ export default Vue.extend({
     this.$bus.$on("global/createChannel", this.addLocalChannelToPeer);
     this.$bus.$on("global/removeChannel", this.removeLocalChannelFromPeer);
 
-    this.$bus.$emit("connection/addWidgetNum");
+    this.$bus.$emit("connection/addWidgetNum", "MainContent");
   },
 
   mounted() {
-    this.localStreamRef = ref<MediaStream | null>(null);
-    this.getLocalMedia();
+    this.audioContext = new (window.AudioContext || (window as any)?.webkitAudioContext)();
+
+    this.localAudioRawStreamRef = ref(null);
+    this.localAudioStreamRef = ref(null);
+    this.localStreamRef = ref(null);
+
+    this.getLocalAudio().finally(() => {
+      this.getLocalMedia();
+    });
   },
 
   beforeDestroy() {
-    this.$bus.$emit("connection/removeWidgetNum");
+    this.closeTracks(this.localStreamRef.value, true);
+    this.closeTracks(this.localAudioRawStreamRef.value, true);
+
+    this.audioContext?.close();
+
+    this.$bus.$emit("connection/removeWidgetNum", "MainContent");
   },
 
   methods: {
     ...mapMutations({
       setInitReady: "connection/setInitReady",
+      setCurrentStep: "connection/setCurrentStep",
       setVideoSource: "connection/setVideoSource",
     }),
     ...mapActions({
@@ -157,11 +221,40 @@ export default Vue.extend({
 
     removeLocalChannelFromPeer({ from }: { from: string }): void {
       this.$delete(this.remoteStreamList, from);
+      this.$delete(this.onRemoteTrackMap, from);
+    },
+
+    getLocalAudio(): Promise<MediaStream> {
+      return new Promise((resolve, reject) => {
+        if (this.localAudioStreamRef.value) return resolve(this.localAudioStreamRef.value);
+        window.navigator.mediaDevices
+          .getUserMedia({
+            video: false,
+            audio: true,
+          })
+          .then(stream => {
+            this.localAudioAvailable = true;
+            this.localAudioRawStreamRef = ref(stream);
+            if (!this.audioContext) {
+              this.localAudioStreamRef = ref(stream);
+              resolve(stream);
+            } else {
+              this.audioNodeList = new AudioNodeList(stream, this.audioContext);
+              this.localAudioStreamRef = ref(this.audioNodeList.stream);
+              resolve(this.audioNodeList.stream);
+            }
+          })
+          .catch(err => {
+            this.localAudioAvailable = false;
+            reject(err);
+          });
+      });
     },
 
     getLocalCameraMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
         if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getUserMedia({
             video: {
@@ -174,9 +267,12 @@ export default Vue.extend({
                 max: userMediaVideoTrackConstraints["1080p"].height,
               },
             },
-            audio: true,
+            audio: false,
           })
           .then(stream => {
+            this.localVideoAvailable = true;
+            const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
+            if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
             resolve(stream);
           })
           .catch(err => {
@@ -188,18 +284,41 @@ export default Vue.extend({
     getLocalDisplayMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
         if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getDisplayMedia({
             video: true,
-            audio: true,
+            audio: false,
           })
           .then(stream => {
+            this.localVideoAvailable = true;
+            const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
+            if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
             resolve(stream);
           })
           .catch(err => {
             reject(err);
           });
       });
+    },
+
+    closeTracks(value: MediaStream | null, audio = false, video = true): void {
+      if (audio && video) {
+        value?.getTracks().forEach(track => {
+          track?.stop();
+        });
+        return;
+      }
+      if (audio) {
+        value?.getAudioTracks().forEach(track => {
+          track?.stop();
+        });
+      }
+      if (video) {
+        value?.getVideoTracks().forEach(track => {
+          track?.stop();
+        });
+      }
     },
 
     getLocalMedia(): Promise<void> {
@@ -218,29 +337,35 @@ export default Vue.extend({
         })
         .catch(err => {
           makeToast("发生错误", "访问用户媒体设备失败: " + err.message, "danger");
+          console.error(err);
         });
+    },
+
+    onRemoteTrack(e: RTCTrackEvent, socketId: string): void {
+      console.log("on-track");
+
+      this.$set(this.remoteStreamList, socketId, e.streams[0]);
+      this.$nextTick(() => {
+        let remoteVideoContainer = this.$refs[`remoteVideoRef_${socketId}`] as HTMLVideoElement;
+        if (Array.isArray(remoteVideoContainer)) remoteVideoContainer = remoteVideoContainer[0];
+
+        if (remoteVideoContainer) {
+          remoteVideoContainer.srcObject = e.streams[0];
+        }
+      });
     },
 
     addLocalChannelToPeer(
       pcInstance: RTCPeerConnection,
       receiveSocketId: string,
-      next: () => void
+      next?: () => void
     ): void {
-      pcInstance.ontrack = (e: RTCTrackEvent): void => {
-        console.log("on-track");
-
-        this.$set(this.remoteStreamList, receiveSocketId, e.streams[0]);
-        this.$nextTick(() => {
-          let remoteVideoContainer = this.$refs[
-            `remoteVideoRef_${receiveSocketId}`
-          ] as HTMLVideoElement;
-          if (Array.isArray(remoteVideoContainer)) remoteVideoContainer = remoteVideoContainer[0];
-
-          if (remoteVideoContainer) {
-            remoteVideoContainer.srcObject = e.streams[0];
-          }
-        });
-      };
+      if (!this.onRemoteTrackMap[receiveSocketId]) {
+        this.onRemoteTrackMap[receiveSocketId] = (e: RTCTrackEvent): void => {
+          this.onRemoteTrack(e, receiveSocketId);
+        };
+      }
+      pcInstance.ontrack = this.onRemoteTrackMap[receiveSocketId];
 
       const getLocalMedia =
         (this.videoSource as "webcam" | "screen") === "webcam"
@@ -253,47 +378,57 @@ export default Vue.extend({
             pcInstance.addTrack(track, stream);
           });
         })
-        .catch(() => {
+        .catch(err => {
+          console.error(err);
           makeToast("错误", "本地视频访问失败", "danger");
         })
         .finally(() => {
-          next();
+          next?.();
         });
     },
 
-    disconnect(): void {
-      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      const socketIdList = Object.keys(pcInstanceMap).map(
-        item => ({ socketId: item } as IConnectionModel)
-      );
-      socketIdList.forEach(item => {
-        pcInstanceMap[item.socketId]?.close();
-      });
-    },
-
-    reconnect(): void {
-      const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
-      const socketIdList = Object.keys(pcInstanceMap).map(
-        item => ({ socketId: item } as IConnectionModel)
-      );
-      this.$bus.$emit("connection/start", [
-        ...socketIdList,
-        { socketId: socketioService.socket.id } as IConnectionModel,
-      ]);
-    },
-
     onRefreshConnection(): void {
-      this.disconnect();
-      this.reconnect();
+      this.$bus.$emit("connection/start");
+    },
+
+    onSwitchMicStatus(): void {
+      this.micMuted = !this.micMuted;
+      if (this.micMuted) {
+        this.localStreamRef.value?.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
+      } else {
+        this.localStreamRef.value?.getAudioTracks().forEach(track => {
+          track.enabled = true;
+        });
+      }
+    },
+
+    onSwitchSpeakerStatus(): void {
+      this.speakerMuted = !this.speakerMuted;
     },
 
     onSwitchMediaSource(): void {
-      this.disconnect();
-      this.localStreamRef = ref(null);
-      this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
-      this.getLocalMedia().then(res => {
-        this.reconnect();
+      this.$bus.$emit("connection/stop");
+      this.$nextTick(() => {
+        this.closeTracks(this.localStreamRef.value);
+        this.localStreamRef = ref(null);
+        this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
+        this.getLocalMedia().then(() => {
+          this.$bus.$emit("connection/start");
+        });
       });
+    },
+
+    onExitRoom(): void {
+      this.$bus.$emit("connection/stop");
+      this.$nextTick(() => {
+        this.$bus.$emit("global/exit");
+      });
+    },
+
+    onChangeVoicePitchClick(): void {
+      (this.audioNodeList?.extensionNodeMap.pitch as PitchNode)?.applyPresets({ offset: 1 });
     },
   },
 });

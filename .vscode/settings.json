@@ -4,6 +4,7 @@
     "chatbox",
     "compat",
     "lintfix",
+    "noninteractive",
     "opentype",
     "socketio",
     "stylelint",
@@ -11,7 +12,9 @@
     "tailwindcss",
     "truetype",
     "unplugin",
-    "vuejs"
+    "unshelve",
+    "vuejs",
+    "webrtc"
   ],
   "css.validate": false,
   "css.lint.unknownAtRules": "ignore",

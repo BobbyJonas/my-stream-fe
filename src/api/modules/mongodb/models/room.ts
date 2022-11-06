@@ -2,6 +2,7 @@ import db from "../database";
 const { Schema, model } = db;
 
 export interface IRoomModel {
+  _id: string;
   name: string;
   code: string; // 唯一的 code
   photo: string; // 头像

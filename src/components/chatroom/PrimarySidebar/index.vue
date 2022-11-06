@@ -1,15 +1,48 @@
 <template>
-  <VueResizable
-    class="primary-sidebar-resizable"
-    :width="width"
-    :active="['l']"
-    :disable-attributes="['l', 't', 'h']"
-    @resize:move="resizeHandler"
+  <b-overlay
+    :show="widgetLoading"
+    class="primary-sidebar-container-overlay"
+    variant="light"
+    :opacity="0.65"
+    blur=""
+    spinner-variant="primary"
+    spinner-type="grow"
+    spinner-small
   >
     <div class="primary-sidebar-container">
-      <TextChatbox ref="textChatboxRef" />
+      <VueResizable
+        v-show="!widgetLoading"
+        class="sidebar-widget-container"
+        :width="tabKey ? width : 0"
+        :min-width="180"
+        :active="tabKey ? ['l'] : []"
+        :disable-attributes="['l', 't', 'h']"
+        @resize:move="resizeHandler"
+      >
+        <component
+          :is="componentMap[item.name]"
+          v-for="item in sidebarWidgetList"
+          v-show="tabKey === item.name"
+          :key="item.name"
+        />
+      </VueResizable>
+      <nav class="sidebar-widget-selector">
+        <b-button
+          v-for="item in sidebarWidgetList"
+          :key="item.name"
+          v-b-tooltip.hover.left.v-light.noninteractive
+          :title="item.label"
+          :pressed="item.name === tabKey"
+          squared
+          variant="outline-secondary"
+          class="widget-toggle-btn"
+          @click="onWidgetListButtonClick(item)"
+        >
+          <b-icon class="btn-icon" :icon="item.icon" />
+        </b-button>
+      </nav>
     </div>
-  </VueResizable>
+  </b-overlay>
 </template>
 
 <script lang="ts">
@@ -17,14 +50,21 @@ import Vue, { Component } from "vue";
 import { mapMutations, mapState } from "vuex";
 
 import VueResizable from "vue-resizable";
-import TextChatbox from "./widgets/TextChatbox.vue";
+
+import { BuiltinSidebarWidgetList, ISidebarWidgetItem } from "./utils";
 
 import ChatroomStore from "~/store/chatroom";
-
-import { Properties } from "~/assets/utils/common";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
+import { makeToast, Properties } from "~/assets/utils/common";
 
 export interface IPrimarySidebarState {
   width: number;
+  tabKey: string | false;
+  componentMap: Record<string, Component>;
+
+  initPromise: Promise<void> | null;
+  initResolve: (() => void) | null;
+  widgetLoading: boolean;
 }
 
 type State = IPrimarySidebarState;
@@ -32,12 +72,16 @@ type State = IPrimarySidebarState;
 export default Vue.extend({
   components: {
     VueResizable,
-    TextChatbox,
   } as Record<string, Component>,
 
   data() {
     return {
-      width: 360,
+      width: 320,
+      tabKey: false,
+      componentMap: {},
+      initPromise: null,
+      initResolve: null,
+      widgetLoading: true,
     } as State;
   },
 
@@ -45,10 +89,54 @@ export default Vue.extend({
     ...mapState("chatroom", ["currentRoomId", "currentUserRole"] as Array<
       Properties<typeof ChatroomStore>
     >),
+    ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
+
+    sidebarWidgetList: () => BuiltinSidebarWidgetList.filter(item => item.enabled),
+  },
+
+  watch: {
+    currentStep(currentValue) {
+      switch (currentValue) {
+        case CONNECTION_INIT_STATUS.INIT_SIDEBAR: {
+          this.initPromise?.then(() => {
+            this.widgetLoading = false;
+            this.tabKey = this.sidebarWidgetList[0].name;
+            this.setCurrentStep(CONNECTION_INIT_STATUS.INIT_SOCKET);
+          });
+          break;
+        }
+        default:
+          break;
+      }
+    },
+  },
+
+  created() {
+    this.initPromise = new Promise(resolve => {
+      let widgetCompletedNum = 0;
+      const internalResolve = () => {
+        widgetCompletedNum++;
+        if (widgetCompletedNum >= this.sidebarWidgetList.length) resolve();
+      };
+      this.initResolve = internalResolve;
+    });
+
+    this.sidebarWidgetList?.forEach(item => {
+      this.$set(this.componentMap, item.name, () => import(`./widgets/${item.name}`));
+    });
+
+    this.$bus.$on(
+      "connection/addWidgetNum",
+      this.initResolve ||
+        (() => {
+          makeToast("发生错误", "组件加载发生错误", "danger");
+        })
+    );
   },
 
   methods: {
     ...mapMutations({
+      setCurrentStep: "connection/setCurrentStep",
       addCurrentStepProcess: "connection/addCurrentStepProcess",
       removeCurrentStepProcess: "connection/removeCurrentStepProcess",
     }),
@@ -62,6 +150,14 @@ export default Vue.extend({
     }) {
       this.width = data.width;
     },
+
+    onWidgetListButtonClick(value: ISidebarWidgetItem) {
+      if (this.tabKey === value.name) {
+        this.tabKey = false;
+        return;
+      }
+      this.tabKey = value.name;
+    },
   },
 });
 </script>
@@ -69,35 +165,73 @@ export default Vue.extend({
 <style lang="less" scoped>
 @import "@/assets/styles/mixin.less";
 
-.primary-sidebar-resizable {
-  width: 360px;
+@sidebar-widget-selector-width: 45px;
 
-  ::v-deep {
-    .resizable-l {
-      cursor: col-resize;
+.primary-sidebar-container-overlay {
+  @apply h-full;
+}
 
-      &::after {
-        content: "";
-        position: absolute;
-        left: 50%;
-        height: 100%;
-        width: 0;
-        transform: translateX(-50%);
-        transition: box-shadow 0.3s;
-      }
+.primary-sidebar-container {
+  @apply h-full;
 
-      &:hover {
+  display: flex;
+
+  .sidebar-widget-container {
+    width: 320px;
+    height: 100%;
+    border-left: 1px solid rgba(white, 0.3);
+
+    ::v-deep {
+      .resizable-l {
+        cursor: col-resize;
+
         &::after {
-          box-shadow: 0 0 0 2.5px @primary;
+          content: "";
+          position: absolute;
+          left: 50%;
+          height: 100%;
+          width: 0;
+          transform: translateX(-50%);
+          transition: box-shadow 0.3s;
+        }
+
+        &:hover {
+          &::after {
+            box-shadow: 0 0 0 2px @primary;
+          }
         }
       }
     }
   }
-}
 
-.primary-sidebar-container {
-  @apply w-full h-full;
+  .sidebar-widget-selector {
+    width: @sidebar-widget-selector-width;
+    background-color: #555;
 
-  display: flex;
+    .widget-toggle-btn {
+      position: relative;
+      width: @sidebar-widget-selector-width;
+      height: @sidebar-widget-selector-width;
+      border: none;
+
+      &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: 2px;
+        background: none;
+      }
+
+      &:active::after {
+        background-color: @primary;
+      }
+
+      &.active::after {
+        background-color: white;
+      }
+    }
+  }
 }
 </style>

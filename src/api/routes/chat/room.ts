@@ -9,8 +9,6 @@ router.post("/enter", async (req, res) => {
   if (!postData.socketId || !postData.roomId) {
     res.status(403).send("传入信息不完整");
   } else {
-    console.log(postData);
-
     modifyConnectionItem({ socketId: postData.socketId }, postData)
       .then(_res => {
         res.status(200).send("ok");
@@ -22,9 +20,10 @@ router.post("/enter", async (req, res) => {
   }
 });
 
-router.post("/modify", (req, res) => {
+// 修改房间信息
+router.post("/", (req, res) => {
   res.end("Test API!");
-  const postData = req.body;
+  const data = req.body;
 });
 
 export default router;

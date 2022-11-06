@@ -1,17 +1,17 @@
 <template>
   <b-overlay
     :show="!funcInitReady"
+    class="widget-container-overlay"
     variant="light"
     :opacity="0.65"
     blur=""
     spinner-variant="primary"
     spinner-type="grow"
     spinner-small
-    :style="{ width: '100%' }"
   >
-    <div class="sidebar-widget-container">
+    <div class="widget-container">
       <div ref="chat-record-wrapper" class="chat-record-wrapper">
-        <ul class="chat-message">
+        <ul v-if="chatList && chatList.length > 0" class="chat-message">
           <li v-for="(item, index) in chatList" :key="index" class="message-item">
             <div class="head">
               <span class="author">{{ item.userNickname }}</span>
@@ -20,6 +20,7 @@
             <p class="content">{{ item.msgContent || "" }}</p>
           </li>
         </ul>
+        <Empty v-else :message="'历史聊天内容为空'" />
       </div>
       <div class="chat-send-wrapper">
         <b-form-textarea
@@ -65,6 +66,8 @@ import ChatroomStore from "~/store/chatroom";
 import ConnectionStore from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
+import Empty from "@/components/common/Empty.vue";
+
 import { makeToast, Properties } from "~/assets/utils/common";
 
 export interface ITextChatboxState {
@@ -74,12 +77,15 @@ export interface ITextChatboxState {
   sendContentInputEnabled: boolean;
 
   dataChannelMap: Record<string, RTCDataChannel | null>;
+  onChannelConnectedMap: Record<string, (e: RTCDataChannelEvent) => void>;
 }
 
 type State = ITextChatboxState;
 
 export default Vue.extend({
-  components: {} as Record<string, Component>,
+  components: {
+    Empty,
+  } as Record<string, Component>,
 
   data() {
     return {
@@ -89,6 +95,7 @@ export default Vue.extend({
       sendContentInputEnabled: false,
 
       dataChannelMap: {},
+      onChannelConnectedMap: {},
     } as State;
   },
 
@@ -102,11 +109,11 @@ export default Vue.extend({
   created() {
     this.$bus.$on("global/createChannel", this.createDataChannel);
     this.$bus.$on("global/removeChannel", this.removeDataChannel);
-    this.$bus.$emit("connection/addWidgetNum");
+    this.$bus.$emit("connection/addWidgetNum", "TextChatbox");
   },
 
   beforeDestroy() {
-    this.$bus.$emit("connection/removeWidgetNum");
+    this.$bus.$emit("connection/removeWidgetNum", "TextChatbox");
   },
 
   methods: {
@@ -120,7 +127,7 @@ export default Vue.extend({
       const currentDataChannel = this.dataChannelMap?.[receiveSocketId];
       if (currentDataChannel) currentDataChannel?.close();
 
-      const newDataChannel = pcInstance.createDataChannel?.("chatbox-message", {
+      const newDataChannel = pcInstance.createDataChannel?.("TextChatbox", {
         protocol: "json",
         maxRetransmits: 5,
       });
@@ -129,26 +136,30 @@ export default Vue.extend({
       newDataChannel.onmessage = this.onRemoteMessage;
       this.$set(this.dataChannelMap, receiveSocketId, newDataChannel);
 
-      pcInstance.ondatachannel = (e: RTCDataChannelEvent) => {
-        this.onRemoteChannelConnected(e, receiveSocketId);
+      this.onChannelConnectedMap[receiveSocketId] = (e: RTCDataChannelEvent) => {
+        this.onChannelConnected(e, receiveSocketId);
       };
+      pcInstance.addEventListener("datachannel", this.onChannelConnectedMap[receiveSocketId]);
       next();
     },
 
     removeDataChannel({ from }: { from: string }): void {
       this.dataChannelMap[from]?.close();
       this.$delete(this.dataChannelMap, from);
+      this.$delete(this.onChannelConnectedMap, from);
     },
 
-    onRemoteChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {
+    onChannelConnected(e: RTCDataChannelEvent, receiveSocketId: string): void {
       const remoteDataChannel = e.channel;
-      remoteDataChannel.onopen = this.onChannelStatusChange;
-      remoteDataChannel.onclose = this.onChannelStatusChange;
-      remoteDataChannel.onmessage = this.onRemoteMessage;
-      this.$set(this.dataChannelMap, receiveSocketId, remoteDataChannel);
+      if (remoteDataChannel && remoteDataChannel.label === "TextChatbox") {
+        remoteDataChannel.onopen = this.onChannelStatusChange;
+        remoteDataChannel.onclose = this.onChannelStatusChange;
+        remoteDataChannel.onmessage = this.onRemoteMessage;
+        this.$set(this.dataChannelMap, receiveSocketId, remoteDataChannel);
+      }
     },
 
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+    // eslint-disable-next-line @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars
     onChannelStatusChange(event: Event): void {},
 
     onRemoteMessage(e: MessageEvent): void {
@@ -189,7 +200,7 @@ export default Vue.extend({
         return;
       }
 
-      const currentMessage: IMessageModel = {
+      const currentMessage: Partial<IMessageModel> = {
         roomId: this.currentRoomId,
         timeSent: new Date(),
         msgType: "text",
@@ -220,13 +231,18 @@ export default Vue.extend({
 <style lang="less" scoped>
 @import "@/assets/styles/mixin.less";
 
-.sidebar-widget-container {
+.widget-container-overlay {
+  @apply w-full h-full;
+}
+
+.widget-container {
   @apply w-full h-full;
 
   display: flex;
   flex-direction: column;
   color: @text-color-lighter;
   background-color: rgb(white 0.25);
+  overflow: hidden;
 
   .chat-record-wrapper {
     @apply px-5 py-4;

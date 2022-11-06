@@ -18,11 +18,6 @@ docker run -d --name mongodb -v /home/mongo/db:/data/db -p 27017:27017 mongo:5.0
 
 开启本地 HTTPS 需要额外生成本地 SSL 证书，并在项目中进行引用。
 
-- [macOS 推荐] 使用 mkcert [[链接](https://github.com/FiloSottile/mkcert/releases)]
-- 使用 OpenSSL
-
-> 相关链接: <https://web.dev/how-to-use-local-https/>
-
 <details>
 <summary>使用 <code>mkcert</code> (仅 macOS)</summary>
 
@@ -73,6 +68,8 @@ rm RootCA.pem
 
 </details>
 
+> 相关链接: <https://web.dev/how-to-use-local-https/>
+
 ## 项目启动
 
 ### 部署网址
@@ -111,6 +108,12 @@ npm run dev:https
 npm run build
 npm run start
 ```
+
+## 引用
+
+> file-icon-vectors: https://github.com/dmhendricks/file-icon-vectors
+>
+> Robot Avatar Icons: https://dighital.com/icon-pack/icons/flat-icons/robot-avatar-icons/
 
 ---
 
