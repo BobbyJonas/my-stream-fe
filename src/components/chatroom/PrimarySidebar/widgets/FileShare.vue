@@ -527,6 +527,8 @@ export default Vue.extend({
         const blob = new Blob(this.currentDownloadBuffer);
         const blobUrl = URL.createObjectURL(blob);
 
+        // URL.revokeObjectURL(blobUrl);
+
         const element = document.createElement("a");
         element.setAttribute("href", blobUrl);
         element.setAttribute("download", this.currentDownloadInfo.name);

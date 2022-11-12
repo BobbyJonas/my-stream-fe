@@ -86,6 +86,22 @@ export default {
     babel: {
       compact: true,
     },
+    extend(config, ctx) {
+      if (ctx.isClient) {
+        config.module.rules.push(
+          {
+            test: /\.worker\.ts$/,
+            loader: "worker-loader",
+            exclude: /(node_modules)/,
+          },
+          {
+            test: /\.worker\.js$/,
+            loader: "worker-loader",
+            exclude: /(node_modules)/,
+          }
+        );
+      }
+    },
   },
 
   // Stylelint Configuration: https://stylelint.io/user-guide/usage/node-api/#options

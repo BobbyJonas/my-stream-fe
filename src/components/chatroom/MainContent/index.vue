@@ -76,15 +76,18 @@
             <b-icon class="btn-icon" icon="telephone-fill" />
           </b-button>
         </aside>
-        <video
-          ref="localVideoRef"
-          :class="['video-container', { 'local-video': videoSource === 'webcam' }]"
-          muted
-          autoplay
-          playsinline
-          disablePictureInPicture
-          @contextmenu="() => false"
-        />
+        <div :class="['video-container', { 'local-video': videoSource === 'webcam' }]">
+          <video
+            ref="localVideoRef"
+            class="video"
+            muted
+            autoplay
+            playsinline
+            disablePictureInPicture
+            @contextmenu="() => false"
+          />
+          <canvas ref="localCanvasRef" class="canvas" width="640" height="480" />
+        </div>
 
         <video
           v-for="item in Object.keys(remoteStreamList)"
@@ -110,6 +113,8 @@ import { Ref, ref } from "@nuxtjs/composition-api";
 import { userMediaVideoTrackConstraints } from "../utils";
 import { AudioNodeList } from "./audioNodeList";
 
+import { VideoBlurEffect } from "./extensions/blur";
+
 import PitchNode from "./extensions/pitch";
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
@@ -122,6 +127,8 @@ export interface IMainContentState {
   localAudioStreamRef: Ref<MediaStream | null>;
   audioContext: AudioContext | null;
   audioNodeList: AudioNodeList | null;
+
+  videoBlurEffect: VideoBlurEffect | null;
 
   micMuted: boolean;
   speakerMuted: boolean;
@@ -144,6 +151,8 @@ export default Vue.extend({
       localAudioStreamRef: ref(null),
       audioContext: null,
       audioNodeList: null,
+
+      videoBlurEffect: null,
 
       micMuted: false,
       speakerMuted: false,
@@ -198,6 +207,8 @@ export default Vue.extend({
     this.getLocalAudio().finally(() => {
       this.getLocalMedia();
     });
+
+    this.videoBlurEffect = null;
   },
 
   beforeDestroy() {
@@ -269,11 +280,18 @@ export default Vue.extend({
             },
             audio: false,
           })
-          .then(stream => {
+          .then(originalStream => {
             this.localVideoAvailable = true;
+
+            if (!this.videoBlurEffect) {
+              this.videoBlurEffect = new VideoBlurEffect(
+                this.$refs.localCanvasRef as HTMLCanvasElement
+              );
+            }
+            this.videoBlurEffect?.drawBlur(originalStream);
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
-            if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
-            resolve(stream);
+            if (audioTracks?.[0]) originalStream.addTrack(audioTracks[0]);
+            resolve(originalStream);
           })
           .catch(err => {
             reject(err);
@@ -452,9 +470,30 @@ export default Vue.extend({
     width: 100%;
 
     .video-container {
+      position: relative;
       flex: 1;
       width: 0;
       height: 100%;
+
+      .video,
+      .canvas {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        width: 100%;
+      }
+
+      .canvas {
+        aspect-ratio: 4 / 3;
+        top: 50%;
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        pointer-events: none;
+        transform: translateY(-50%);
+        object-fit: contain;
+      }
 
       &::-webkit-media-controls-fullscreen-button {
         display: none;

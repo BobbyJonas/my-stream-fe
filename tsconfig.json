@@ -3,7 +3,7 @@
     "target": "es2018",
     "module": "esnext",
     "moduleResolution": "node",
-    "lib": ["esnext", "esnext.asyncIterable", "dom"],
+    "lib": ["webworker", "webworker.importScripts", "esnext", "esnext.asyncIterable", "dom"],
     "esModuleInterop": true,
     "allowJs": true,
     "sourceMap": true,

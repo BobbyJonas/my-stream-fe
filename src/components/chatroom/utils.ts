@@ -16,8 +16,8 @@ export const userMediaVideoTrackConstraints: Record<
   userMediaVideoQualityType,
   { width: number; height: number }
 > = {
-  "1080p": { width: 1920, height: 1080 },
-  "720p": { width: 1280, height: 720 },
+  "1080p": { width: 1920, height: 1440 },
+  "720p": { width: 1280, height: 960 },
   "480p": { width: 640, height: 480 },
   "360p": { width: 480, height: 360 },
   "240p": { width: 320, height: 240 },
