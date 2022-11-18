@@ -14,7 +14,17 @@
       :style="{ width: '100%' }"
     >
       <div v-if="currentAddUser" class="new-role-container">
-        <aside class="avatar-container"></aside>
+        <b-button
+          v-b-tooltip.hover.v-secondary.noninteractive
+          v-b-modal="'avatar-modal'"
+          title="更换头像"
+          size="lg"
+          variant="outline-primary"
+          class="avatar-container"
+          pill
+        >
+          <img class="img" :src="`/icon/avatar/${currentAddUserAvatarIndex}.svg`" alt="当前头像" />
+        </b-button>
         <div class="new-role-form">
           <h4 class="form-title">填写角色信息</h4>
           <b-form @submit="onSubmitUserInfo" @reset="onResetUserInfo">
@@ -74,7 +84,9 @@
             @keypress.enter="onRoleCardClick(index)"
             @click="onRoleCardClick(index)"
           >
-            <div class="card-avatar"></div>
+            <div class="card-avatar">
+              <img v-if="item.photo" class="img" :src="item.photo" alt="头像" />
+            </div>
             <p class="card-name">{{ item.nickname }}</p>
             <div class="card-delete" @click="onDeleteCardClick($event, index)">
               <b-icon class="btn-icon" icon="trash" />
@@ -103,6 +115,33 @@
         </b-button>
       </div>
     </b-overlay>
+    <b-modal
+      id="avatar-modal"
+      title="选择头像"
+      ok-only
+      ok-title="确定"
+      ok-variant="outline-primary"
+    >
+      <div class="avatar-modal-content">
+        <h5 class="current-avatar">
+          当前头像
+          <img class="img" :src="`/icon/avatar/${currentAddUserAvatarIndex}.svg`" alt="当前头像" />
+        </h5>
+        <h5 class="avatar-list-header">头像列表</h5>
+        <ul class="avatar-list">
+          <li v-for="index in 50" :key="index" class="avatar-item">
+            <b-button
+              pill
+              class="select-button"
+              variant="secondary"
+              @click="currentAddUserAvatarIndex = index"
+            >
+              <img class="img" :src="`/icon/avatar/${index}.svg`" :alt="`avatar ${index}`" />
+            </b-button>
+          </li>
+        </ul>
+      </div>
+    </b-modal>
   </div>
 </template>
 
@@ -121,6 +160,7 @@ export interface IChatroomNewState {
   userRoleList: Array<IUserModel>;
   loading: boolean;
   currentAddUser: boolean;
+  currentAddUserAvatarIndex: number;
   selectRoleIndex: number;
 }
 
@@ -141,6 +181,7 @@ export default Vue.extend({
       userRoleList: [],
       loading: false,
       currentAddUser: false,
+      currentAddUserAvatarIndex: -1,
       selectRoleIndex: -1,
     } as State;
   },
@@ -164,6 +205,7 @@ export default Vue.extend({
     this.ifUserRoleExists = !!storageUserRole;
     if (!this.ifUserRoleExists) {
       this.currentAddUser = true;
+      this.currentAddUserAvatarIndex = Math.floor(Math.random() * 50) + 1;
       return;
     }
     if (!storageCurrentRole && this.selectRoleIndex < 0) {
@@ -193,6 +235,7 @@ export default Vue.extend({
     onAddCardClick() {
       this.onResetUserInfo();
       this.currentAddUser = true;
+      this.currentAddUserAvatarIndex = Math.floor(Math.random() * 50) + 1;
     },
 
     onDeleteCardClick(e: MouseEvent, index: number) {
@@ -227,7 +270,11 @@ export default Vue.extend({
       event.preventDefault();
 
       this.$axios
-        .post("/db/user", { ...this.userInfoForm, signUpTime: Date.now() } as IUserModel)
+        .post("/db/user", {
+          ...this.userInfoForm,
+          photo: `/icon/avatar/${this.currentAddUserAvatarIndex}.svg`,
+          signUpTime: Date.now(),
+        } as IUserModel)
         .then(res => {
           const { status, data } = res;
           if (status === 200) {
@@ -329,9 +376,16 @@ export default Vue.extend({
       display: block;
       width: 128px;
       height: 128px;
+      padding: 0;
       margin-right: 42px;
       background-color: rgb(black 0.05);
-      border-radius: @border-radius-infinite;
+      border: none;
+
+      .img {
+        width: 100%;
+        height: 100%;
+        border-radius: @border-radius-infinite;
+      }
     }
 
     .new-role-form {
@@ -388,6 +442,12 @@ export default Vue.extend({
           width: 72px;
           border-radius: @border-radius-infinite;
           background-color: rgba(black, 0.5);
+
+          .img {
+            width: 100%;
+            height: 100%;
+            border-radius: @border-radius-infinite;
+          }
         }
 
         .card-delete {
@@ -463,6 +523,72 @@ export default Vue.extend({
     .btn-add-chatroom {
       margin: 40px 0 10px;
       padding: 8px 20px;
+    }
+  }
+}
+
+.avatar-modal-content {
+  padding: 4px 8px;
+
+  .current-avatar {
+    font-size: @font-size-lg;
+    font-weight: bolder;
+    text-align: center;
+
+    .img {
+      width: 108px;
+      height: 108px;
+      margin: 14px auto 24px;
+      user-select: none;
+      border-radius: @border-radius-infinite;
+    }
+  }
+
+  .avatar-list-header {
+    font-size: @font-size-md;
+    font-weight: bolder;
+    margin-bottom: 12px;
+  }
+
+  .avatar-list {
+    max-height: 200px;
+    padding: 12px 0;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    row-gap: 14px;
+    justify-items: center;
+    overflow: hidden auto;
+    background-color: @bg-light-grey;
+    border-radius: 3px;
+  }
+
+  .avatar-item {
+    .select-button {
+      position: relative;
+      padding: 0;
+      border: none;
+
+      .img {
+        position: relative;
+        width: 38px;
+        height: 38px;
+      }
+
+      &::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: transparent;
+        border-radius: @border-radius-infinite;
+        transition: background-color 0.3s;
+      }
+
+      &:hover::after {
+        background-color: rgba(@text-color-base, 0.3);
+      }
     }
   }
 }

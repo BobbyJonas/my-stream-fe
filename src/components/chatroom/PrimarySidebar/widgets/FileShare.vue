@@ -61,7 +61,7 @@
         </b-button>
       </dt>
       <dd class="file-list">
-        <div v-if="currentUploadInfo" class="list-item">
+        <div v-if="currentUploadInfo" class="list-item" @click="onLocalFileOpen">
           <a class="file" href="javascript: void(0)" role="button" :tabindex="0">
             <img
               class="icon"
@@ -183,6 +183,9 @@ export interface IFileShareState {
   onChannelConnectedMap: Record<string, (e: RTCDataChannelEvent) => void>;
 
   fileShareList: Array<FileShareListItem>;
+
+  lastRemoteBlobUrl: any;
+  lastLocalBlobUrl: any;
 }
 
 type State = IFileShareState;
@@ -212,6 +215,9 @@ export default Vue.extend({
       onChannelConnectedMap: {},
 
       fileShareList: [],
+
+      lastRemoteBlobUrl: null,
+      lastLocalBlobUrl: null,
     } as State;
   },
 
@@ -443,6 +449,17 @@ export default Vue.extend({
         makeToast("警告", "请先等待当前传输任务完成之后再进行下载", "warning");
         return;
       }
+      if (this.lastRemoteBlobUrl[item.id]) {
+        const element = document.createElement("a");
+        element.setAttribute("href", this.lastRemoteBlobUrl[item.id]);
+        element.setAttribute("download", item.name);
+
+        element.style.display = "none";
+        element.click();
+        return;
+      } else if (this.lastRemoteBlobUrl) {
+        URL.revokeObjectURL(Object.values(this.lastRemoteBlobUrl)[0] as string);
+      }
       this.sendMessage(
         JSON.stringify({
           type: "apply",
@@ -528,6 +545,7 @@ export default Vue.extend({
         const blobUrl = URL.createObjectURL(blob);
 
         // URL.revokeObjectURL(blobUrl);
+        this.lastRemoteBlobUrl = { [this.currentDownloadInfo.id]: blobUrl };
 
         const element = document.createElement("a");
         element.setAttribute("href", blobUrl);
@@ -538,6 +556,22 @@ export default Vue.extend({
 
         this.currentDownloadInfo = null;
       }
+    },
+
+    /** 其他 */
+
+    onLocalFileOpen(): void {
+      if (!this.currentUploadFile) return;
+      if (this.lastLocalBlobUrl) {
+        URL.revokeObjectURL(this.lastLocalBlobUrl);
+      }
+      const blobUrl = URL.createObjectURL(this.currentUploadFile);
+      this.lastLocalBlobUrl = blobUrl;
+      const element = document.createElement("a");
+      element.setAttribute("href", blobUrl);
+      element.setAttribute("target", "_blank");
+      element.style.display = "none";
+      element.click();
     },
   },
 });

@@ -283,12 +283,13 @@ export default Vue.extend({
           .then(originalStream => {
             this.localVideoAvailable = true;
 
-            if (!this.videoBlurEffect) {
-              this.videoBlurEffect = new VideoBlurEffect(
-                this.$refs.localCanvasRef as HTMLCanvasElement
-              );
-            }
-            this.videoBlurEffect?.drawBlur(originalStream);
+            // TODO: 完善特效
+            // if (!this.videoBlurEffect) {
+            //   this.videoBlurEffect = new VideoBlurEffect(
+            //     this.$refs.localCanvasRef as HTMLCanvasElement
+            //   );
+            // }
+            // this.videoBlurEffect?.drawBlur(originalStream);
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
             if (audioTracks?.[0]) originalStream.addTrack(audioTracks[0]);
             resolve(originalStream);
