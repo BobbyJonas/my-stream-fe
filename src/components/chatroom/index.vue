@@ -246,7 +246,7 @@ export default Vue.extend({
           .createAnswer?.({
             offerToReceiveVideo: true,
             offerToReceiveAudio: true,
-          })
+          } as any)
           .then(sdp => {
             pcInstance.setLocalDescription(sdp);
             socketioService.socket.emit("__answer", {
