@@ -149,6 +149,7 @@
 import Vue, { Component } from "vue";
 import { mapMutations, mapState } from "vuex";
 import { v4 as uuidv4 } from "uuid";
+import _ from "lodash";
 
 import type { IUserModel } from "~/api/modules/mongodb/models/user";
 import ChatroomStore from "~/store/chatroom";
@@ -193,6 +194,11 @@ export default Vue.extend({
   },
 
   beforeMount() {
+    window.__MY_STREAM__ = _.defaultsDeep(
+      { $store: this?.$store, $bus: this?.$bus },
+      window.__MY_STREAM__ || {}
+    );
+
     const storageUserRole: string = window.localStorage["user-role"];
     if (storageUserRole) this.userRoleList = JSON.parse(storageUserRole as string) || [];
 

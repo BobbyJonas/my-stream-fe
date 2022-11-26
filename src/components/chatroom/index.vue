@@ -108,7 +108,6 @@ export default Vue.extend({
   },
 
   beforeMount() {
-    window.__MY_STREAM__ = _.defaultsDeep({ $bus: this?.$bus }, window.__MY_STREAM__ || {});
     // console.log(adapter.browserDetails.browser);
 
     setTimeout(() => {

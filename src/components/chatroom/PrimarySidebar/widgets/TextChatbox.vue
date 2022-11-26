@@ -13,11 +13,19 @@
       <div ref="chat-record-wrapper" class="chat-record-wrapper">
         <ul v-if="chatList && chatList.length > 0" class="chat-message">
           <li v-for="(item, index) in chatList" :key="index" class="message-item">
-            <div class="head">
-              <span class="author">{{ item.userNickname }}</span>
-              <span class="time">{{ date2Text(item.timeSent) }}</span>
+            <div class="left">
+              <div class="avatar">
+                <img v-if="item.userPhoto" class="img" :src="item.userPhoto || ''" alt="头像" />
+                <b-icon v-else icon="person" />
+              </div>
             </div>
-            <p class="content">{{ item.msgContent || "" }}</p>
+            <div class="right">
+              <div class="head">
+                <span class="author">{{ item.userNickname }}</span>
+                <span class="time">{{ date2Text(item.timeSent) }}</span>
+              </div>
+              <p class="content">{{ item.msgContent || "" }}</p>
+            </div>
           </li>
         </ul>
         <Empty v-else :message="'历史聊天内容为空'" />
@@ -62,16 +70,22 @@ import { mapMutations, mapState } from "vuex";
 
 import moment from "moment";
 
+import socketioService from "~/assets/services/socket-io-client";
+
 import ChatroomStore from "~/store/chatroom";
-import ConnectionStore from "~/store/connection";
+import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 import type { IMessageModel } from "~/api/modules/mongodb/models/message";
 
 import Empty from "@/components/common/Empty.vue";
 
 import { makeToast, Properties } from "~/assets/utils/common";
 
+export type IMessageDisplayModel = IMessageModel & { userNickname?: string; userPhoto?: string };
+
 export interface ITextChatboxState {
-  chatList: Array<IMessageModel>;
+  currentSocketId: string;
+
+  chatList: Array<IMessageDisplayModel>;
   funcInitReady: boolean;
   sendContentValue: string;
   sendContentInputEnabled: boolean;
@@ -89,6 +103,8 @@ export default Vue.extend({
 
   data() {
     return {
+      currentSocketId: "",
+
       chatList: [],
       funcInitReady: true,
       sendContentValue: "",
@@ -104,6 +120,20 @@ export default Vue.extend({
       Properties<typeof ChatroomStore>
     >),
     ...mapState("connection", ["currentStep"] as Array<Properties<typeof ConnectionStore>>),
+  },
+
+  watch: {
+    currentStep(currentValue) {
+      switch (currentValue) {
+        case CONNECTION_INIT_STATUS.DONE:
+          if (socketioService.socket?.id) {
+            this.currentSocketId = socketioService.socket.id;
+          }
+          break;
+        default:
+          break;
+      }
+    },
   },
 
   created() {
@@ -171,8 +201,17 @@ export default Vue.extend({
           chatListContainer.offsetHeight <
         5;
 
-      this.chatList.push(JSON.parse(e.data) as IMessageModel);
+      const newChatItem: IMessageDisplayModel = (JSON.parse(e.data) as IMessageModel) || {};
+      const fromUser = window.__MY_STREAM__?.memberList?.find(
+        memberItem => memberItem.socketId === newChatItem.socketId
+      );
 
+      if (fromUser) {
+        newChatItem.userNickname = fromUser.nickname;
+        newChatItem.userPhoto = fromUser.photo;
+      }
+
+      this.chatList.push(newChatItem);
       this.$nextTick(() => {
         if (ifBottom) {
           chatListContainer.scrollTo(
@@ -202,13 +241,14 @@ export default Vue.extend({
 
       const currentMessage: Partial<IMessageModel> = {
         roomId: this.currentRoomId,
+        socketId: this.currentSocketId,
         timeSent: new Date(),
         msgType: "text",
         msgContent: sendContent,
         read: false,
-        userId: this.currentUserRole._id,
-        userNickname: this.currentUserRole.nickname,
       };
+
+      console.log(currentMessage);
 
       const sendValue = JSON.stringify(currentMessage);
       this.onRemoteMessage({ data: sendValue } as any);
@@ -256,21 +296,52 @@ export default Vue.extend({
       font-size: @font-size-sm;
 
       .message-item {
-        margin-bottom: 8px;
+        display: flex;
+        margin-bottom: 12px;
         word-break: break-all;
 
-        .head {
-          margin-bottom: 1px;
-          color: @text-color-light;
+        .left {
+          display: flex;
+          align-items: flex-start;
+          padding-top: 4px;
+          margin-right: 8px;
 
-          .author {
-            margin-right: 8px;
+          .avatar {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            height: 30px;
+            width: 30px;
+            font-size: @font-size-md;
+            border-radius: @border-radius-infinite;
+            box-shadow: 0 0 0 1px grey;
+            background-color: rgba(black, 0.5);
+
+            .img {
+              width: 100%;
+              height: 100%;
+              border-radius: @border-radius-infinite;
+            }
           }
         }
 
-        .content {
-          line-height: 1.25;
-          white-space: pre-line;
+        .right {
+          width: 0;
+          flex: 1;
+
+          .head {
+            margin-bottom: 3px;
+            color: @text-color-light;
+
+            .author {
+              margin-right: 8px;
+            }
+          }
+
+          .content {
+            line-height: 1.25;
+            white-space: pre-line;
+          }
         }
       }
     }

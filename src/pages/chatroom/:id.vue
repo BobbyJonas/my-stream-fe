@@ -15,6 +15,7 @@
 
 <script lang="ts">
 import Vue, { Component } from "vue";
+import _ from "lodash";
 
 import { mapMutations, mapState } from "vuex";
 
@@ -49,6 +50,11 @@ export default Vue.extend({
   },
 
   beforeMount() {
+    window.__MY_STREAM__ = _.defaultsDeep(
+      { $store: this?.$store, $bus: this?.$bus },
+      window.__MY_STREAM__ || {}
+    );
+
     this.setCurrentRoomId(this.$route.params?.id);
 
     const storageCurrentRole: string = window.localStorage["current-role"];
