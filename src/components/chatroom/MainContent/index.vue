@@ -111,11 +111,12 @@ import { mapMutations, mapState, mapActions } from "vuex";
 import { Ref, ref } from "@nuxtjs/composition-api";
 
 import { userMediaVideoTrackConstraints } from "../utils";
-import { AudioNodeList } from "./audioNodeList";
+import { AudioNodeList } from "./extensions/audio/effectNodeList";
 
-import { VideoBlurEffect } from "./extensions/blur";
+import VideoEffectInit from "./extensions/video/effectCanvas";
+import { VideoBlurEffect } from "./extensions/video/blur";
 
-import PitchNode from "./extensions/pitch";
+import PitchNode from "./extensions/audio/pitch";
 import ChatroomStore from "~/store/chatroom";
 import ConnectionStore, { CONNECTION_INIT_STATUS } from "~/store/connection";
 
@@ -128,13 +129,19 @@ export interface IMainContentState {
   audioContext: AudioContext | null;
   audioNodeList: AudioNodeList | null;
 
+  videoEffectInit: VideoEffectInit | null;
   videoBlurEffect: VideoBlurEffect | null;
 
   micMuted: boolean;
   speakerMuted: boolean;
 
   localVideoAvailable: boolean;
+  localDisplayStreamRef: Ref<MediaStream | null>;
+
+  localCanvasStreamRef: Ref<MediaStream | null>;
+  localCanvasContext: Ref<CanvasRenderingContext2D | null>;
   localStreamRef: Ref<MediaStream | null>;
+
   remoteStreamList: Record<string, MediaStream | null>;
   onRemoteTrackMap: Record<string, (e: RTCTrackEvent) => void>;
 }
@@ -152,13 +159,19 @@ export default Vue.extend({
       audioContext: null,
       audioNodeList: null,
 
+      videoEffectInit: null,
       videoBlurEffect: null,
 
       micMuted: false,
       speakerMuted: false,
 
       localVideoAvailable: false,
+      localDisplayStreamRef: ref(null), // 本地video标签里展示的视频
+
+      localCanvasStreamRef: ref(null),
+      localCanvasContext: ref(null),
       localStreamRef: ref(null),
+
       remoteStreamList: {},
       onRemoteTrackMap: {},
     } as State;
@@ -202,16 +215,22 @@ export default Vue.extend({
 
     this.localAudioRawStreamRef = ref(null);
     this.localAudioStreamRef = ref(null);
-    this.localStreamRef = ref(null);
+
+    const canvas = this.$refs.localCanvasRef as HTMLCanvasElement;
+    this.localCanvasContext = ref(canvas.getContext("2d"));
+    this.localCanvasStreamRef = ref(canvas.captureStream());
+    this.localDisplayStreamRef = ref(null);
 
     this.getLocalAudio().finally(() => {
       this.getLocalMedia();
     });
 
+    this.videoEffectInit = null;
     this.videoBlurEffect = null;
   },
 
   beforeDestroy() {
+    this.closeTracks(this.localDisplayStreamRef.value, true);
     this.closeTracks(this.localStreamRef.value, true);
     this.closeTracks(this.localAudioRawStreamRef.value, true);
 
@@ -264,7 +283,8 @@ export default Vue.extend({
 
     getLocalCameraMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
-        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        if (this.localDisplayStreamRef.value) return resolve(this.localDisplayStreamRef.value);
+        this.localStreamRef = ref(null);
         this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getUserMedia({
@@ -283,15 +303,26 @@ export default Vue.extend({
           .then(originalStream => {
             this.localVideoAvailable = true;
 
-            // TODO: 完善特效
-            // if (!this.videoBlurEffect) {
-            //   this.videoBlurEffect = new VideoBlurEffect(
-            //     this.$refs.localCanvasRef as HTMLCanvasElement
-            //   );
-            // }
-            // this.videoBlurEffect?.drawBlur(originalStream);
+            if (!this.videoEffectInit) {
+              this.videoEffectInit = new VideoEffectInit(
+                this.$refs.localCanvasRef as HTMLCanvasElement,
+                this.localCanvasContext.value!,
+                originalStream
+              );
+            } else {
+              this.videoEffectInit.setNewMediaSource(originalStream);
+            }
+
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
-            if (audioTracks?.[0]) originalStream.addTrack(audioTracks[0]);
+            if (audioTracks?.[0]) {
+              this.localCanvasStreamRef.value?.getAudioTracks().forEach(track => {
+                this.localCanvasStreamRef.value?.removeTrack(track);
+              });
+              this.localCanvasStreamRef.value?.addTrack(audioTracks[0]);
+              originalStream.addTrack(audioTracks[0]);
+            }
+
+            this.localStreamRef = ref(this.localCanvasStreamRef.value);
             resolve(originalStream);
           })
           .catch(err => {
@@ -300,9 +331,10 @@ export default Vue.extend({
       });
     },
 
-    getLocalDisplayMedia(): Promise<MediaStream> {
+    getLocalScreenMedia(): Promise<MediaStream> {
       return new Promise((resolve, reject) => {
-        if (this.localStreamRef.value) return resolve(this.localStreamRef.value);
+        if (this.localDisplayStreamRef.value) return resolve(this.localDisplayStreamRef.value);
+        this.localStreamRef = ref(null);
         this.localVideoAvailable = false;
         window.navigator.mediaDevices
           .getDisplayMedia({
@@ -313,6 +345,7 @@ export default Vue.extend({
             this.localVideoAvailable = true;
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
             if (audioTracks?.[0]) stream.addTrack(audioTracks[0]);
+            this.localStreamRef = ref(stream);
             resolve(stream);
           })
           .catch(err => {
@@ -322,20 +355,25 @@ export default Vue.extend({
     },
 
     closeTracks(value: MediaStream | null, audio = false, video = true): void {
+      console.log("close");
+
       if (audio && video) {
         value?.getTracks().forEach(track => {
           track?.stop();
+          value.removeTrack(track);
         });
         return;
       }
       if (audio) {
         value?.getAudioTracks().forEach(track => {
           track?.stop();
+          value.removeTrack(track);
         });
       }
       if (video) {
         value?.getVideoTracks().forEach(track => {
           track?.stop();
+          value.removeTrack(track);
         });
       }
     },
@@ -347,11 +385,11 @@ export default Vue.extend({
       const getLocalMedia =
         (this.videoSource as "webcam" | "screen") === "webcam"
           ? this.getLocalCameraMedia
-          : this.getLocalDisplayMedia;
+          : this.getLocalScreenMedia;
 
       return getLocalMedia()
         .then(stream => {
-          this.localStreamRef = ref(stream);
+          this.localDisplayStreamRef = ref(stream);
           if (localVideoControl) localVideoControl.srcObject = stream;
         })
         .catch(err => {
@@ -379,6 +417,8 @@ export default Vue.extend({
       receiveSocketId: string,
       next?: () => void
     ): void {
+      console.log("add-track");
+
       if (!this.onRemoteTrackMap[receiveSocketId]) {
         this.onRemoteTrackMap[receiveSocketId] = (e: RTCTrackEvent): void => {
           this.onRemoteTrack(e, receiveSocketId);
@@ -389,12 +429,12 @@ export default Vue.extend({
       const getLocalMedia =
         (this.videoSource as "webcam" | "screen") === "webcam"
           ? this.getLocalCameraMedia
-          : this.getLocalDisplayMedia;
+          : this.getLocalScreenMedia;
 
       getLocalMedia()
         .then(stream => {
-          stream?.getTracks().forEach(track => {
-            pcInstance.addTrack(track, stream);
+          this.localStreamRef.value?.getTracks().forEach(track => {
+            pcInstance.addTrack(track, this.localStreamRef.value!);
           });
         })
         .catch(err => {
@@ -413,10 +453,16 @@ export default Vue.extend({
     onSwitchMicStatus(): void {
       this.micMuted = !this.micMuted;
       if (this.micMuted) {
+        this.localDisplayStreamRef.value?.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
         this.localStreamRef.value?.getAudioTracks().forEach(track => {
           track.enabled = false;
         });
       } else {
+        this.localDisplayStreamRef.value?.getAudioTracks().forEach(track => {
+          track.enabled = true;
+        });
         this.localStreamRef.value?.getAudioTracks().forEach(track => {
           track.enabled = true;
         });
@@ -430,8 +476,9 @@ export default Vue.extend({
     onSwitchMediaSource(): void {
       this.$bus.$emit("connection/stop");
       this.$nextTick(() => {
+        this.closeTracks(this.localDisplayStreamRef.value);
         this.closeTracks(this.localStreamRef.value);
-        this.localStreamRef = ref(null);
+        this.localDisplayStreamRef = ref(null);
         this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
         this.getLocalMedia().then(() => {
           this.$bus.$emit("connection/start");

@@ -8,7 +8,18 @@ export const extensions = [
         icon: "",
       },
     ],
-    src: require("./pitch"),
+    src: require("./audio/pitch"),
+  },
+  {
+    name: "blur",
+    type: "video",
+    registry: [
+      {
+        key: "content/bar",
+        icon: "",
+      },
+    ],
+    src: require("./video/blur/index.ts"),
   },
 ];
 

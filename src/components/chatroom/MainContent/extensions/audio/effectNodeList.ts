@@ -1,4 +1,6 @@
-import { extensions } from "./extensions";
+import { extensions } from "..";
+
+const audioExtensions = extensions?.filter(item => item.type === "audio") || [];
 
 export type NodeListItemType = {
   name: string;
@@ -38,8 +40,8 @@ export class AudioNodeList {
 
     processNodeNameList.unshift("input");
 
-    for (let i = 0; i < extensions.length; i++) {
-      const { type, name, src = {} } = extensions[i];
+    for (let i = 0; i < audioExtensions.length; i++) {
+      const { type, name, src = {} } = audioExtensions[i];
 
       if (type === "audio") {
         const { default: ExtensionNode } = src;
