@@ -64,6 +64,16 @@
           >
             <b-icon class="btn-icon" icon="emoji-sunglasses-fill" />
           </b-button>
+          <b-button
+            v-b-tooltip.hover.v-secondary.noninteractive
+            title="启用背景模糊"
+            class="operation-btn"
+            variant="outline-secondary"
+            pill
+            @click="onToggleBlurClick"
+          >
+            <b-icon class="btn-icon" icon="person-square" />
+          </b-button>
           <span class="separator" />
           <b-button
             v-b-tooltip.hover.v-secondary.noninteractive
@@ -86,7 +96,13 @@
             disablePictureInPicture
             @contextmenu="() => false"
           />
-          <canvas ref="localCanvasRef" class="canvas" width="640" height="480" />
+          <canvas
+            v-show="videoSource === 'webcam'"
+            ref="localCanvasRef"
+            class="canvas"
+            width="640"
+            height="480"
+          />
         </div>
 
         <video
@@ -113,7 +129,7 @@ import { Ref, ref } from "@nuxtjs/composition-api";
 import { userMediaVideoTrackConstraints } from "../utils";
 import { AudioNodeList } from "./extensions/audio/effectNodeList";
 
-import VideoEffectInit from "./extensions/video/effectCanvas";
+import VideoEffectInit, { videoExtensions } from "./extensions/video/effectCanvas";
 import { VideoBlurEffect } from "./extensions/video/blur";
 
 import PitchNode from "./extensions/audio/pitch";
@@ -361,27 +377,23 @@ export default Vue.extend({
       if (audio && video) {
         value?.getTracks().forEach(track => {
           track?.stop();
-          value.removeTrack(track);
         });
         return;
       }
       if (audio) {
         value?.getAudioTracks().forEach(track => {
           track?.stop();
-          value.removeTrack(track);
         });
       }
       if (video) {
         value?.getVideoTracks().forEach(track => {
           track?.stop();
-          value.removeTrack(track);
         });
       }
     },
 
     getLocalMedia(): Promise<void> {
       const localVideoControl: HTMLVideoElement | null = this.$refs.localVideoRef as any;
-      if (localVideoControl) localVideoControl.srcObject = null;
 
       const getLocalMedia =
         (this.videoSource as "webcam" | "screen") === "webcam"
@@ -427,12 +439,7 @@ export default Vue.extend({
       }
       pcInstance.ontrack = this.onRemoteTrackMap[receiveSocketId];
 
-      const getLocalMedia =
-        (this.videoSource as "webcam" | "screen") === "webcam"
-          ? this.getLocalCameraMedia
-          : this.getLocalScreenMedia;
-
-      getLocalMedia()
+      this.getLocalMedia()
         .then(stream => {
           this.localStreamRef.value?.getTracks().forEach(track => {
             pcInstance.addTrack(track, this.localStreamRef.value!);
@@ -480,6 +487,7 @@ export default Vue.extend({
         this.closeTracks(this.localDisplayStreamRef.value);
         this.closeTracks(this.localStreamRef.value);
         this.localDisplayStreamRef = ref(null);
+        this.localStreamRef = ref(null);
         this.setVideoSource(this.videoSource === "screen" ? "webcam" : "screen");
         this.getLocalMedia().then(() => {
           this.$bus.$emit("connection/start");
@@ -496,6 +504,10 @@ export default Vue.extend({
 
     onChangeVoicePitchClick(): void {
       (this.audioNodeList?.extensionNodeMap.pitch as PitchNode)?.applyPresets({ offset: 1 });
+    },
+
+    onToggleBlurClick(): void {
+      this.videoEffectInit?.initExtension(videoExtensions);
     },
   },
 });

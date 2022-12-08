@@ -4,20 +4,21 @@
 /* eslint-disable @typescript-eslint/no-this-alias */
 
 import { extensions } from "..";
-const videoExtensions = extensions?.filter(item => item.type === "video") || [];
+export const videoExtensions = extensions?.filter(item => item.type === "video") || [];
 
 export class VideoEffectCanvas {
-  running: boolean = true;
+  private running: boolean = true;
 
-  canvas: HTMLCanvasElement;
-  canvasContext: CanvasRenderingContext2D | null;
-  videoTrack: MediaStreamTrack | null = null;
-  videoRef: HTMLVideoElement;
+  private canvas: HTMLCanvasElement;
+  private canvasContext: CanvasRenderingContext2D | null;
+  private videoTrack: MediaStreamTrack | null = null;
+  private videoRef: HTMLVideoElement;
 
-  extensionFn: any[] = [];
-  imageCapture?: ImageCapture;
-  imageCaptureFlag: boolean = true;
-  grabFramePromise?: Promise<any>;
+  private imageCapture?: ImageCapture;
+  private imageCaptureFlag: boolean = true;
+  private grabFramePromise?: Promise<any>;
+
+  public extensionFn: any[] = [];
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -34,19 +35,18 @@ export class VideoEffectCanvas {
       height,
     });
     this.canvasContext = canvasContext;
-    this.initExtension();
+    this.initExtension([]);
   }
 
-  initExtension(): void {
+  initExtension(extList: typeof videoExtensions): void {
     this.extensionFn = [];
     let k = -1;
-    videoExtensions.forEach(extItem => {
+    extList.forEach(extItem => {
       const Module = extItem.src?.default;
       if (Module) {
         this.extensionFn[++k] = new Module(this.canvas);
       }
     });
-    console.log(this.extensionFn);
   }
 
   setNewMediaSource(mediaStream: MediaStream) {
@@ -90,14 +90,10 @@ export class VideoEffectCanvas {
       if (window.ImageCapture?.prototype?.grabFrame) {
         let resVideoBitmap: ImageBitmap;
         if (!this.grabFramePromise) {
-          // console.log(this.imageCapture);
-
           // https://w3c.github.io/mediacapture-image/index.html#dom-imagecapture-grabframe
           this.grabFramePromise = this.imageCapture
             .grabFrame()
             .then(async videoBitmap => {
-              // console.log(videoBitmap);
-
               resVideoBitmap = videoBitmap;
               try {
                 for (let k = 0; k < this.extensionFn?.length; k++) {
