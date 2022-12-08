@@ -307,7 +307,8 @@ export default Vue.extend({
               this.videoEffectInit = new VideoEffectInit(
                 this.$refs.localCanvasRef as HTMLCanvasElement,
                 this.localCanvasContext.value!,
-                originalStream
+                originalStream,
+                this.$refs.localVideoRef as HTMLVideoElement
               );
             } else {
               this.videoEffectInit.setNewMediaSource(originalStream);
