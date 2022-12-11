@@ -234,7 +234,6 @@ export default Vue.extend({
 
     const canvas = this.$refs.localCanvasRef as HTMLCanvasElement;
     this.localCanvasContext = ref(canvas.getContext("2d"));
-    this.localCanvasStreamRef = ref(canvas.captureStream());
     this.localDisplayStreamRef = ref(null);
 
     this.getLocalAudio().finally(() => {
@@ -319,9 +318,12 @@ export default Vue.extend({
           .then(originalStream => {
             this.localVideoAvailable = true;
 
+            const canvas = this.$refs.localCanvasRef as HTMLCanvasElement;
+            this.localCanvasStreamRef = ref(canvas.captureStream());
+
             if (!this.videoEffectInit) {
               this.videoEffectInit = new VideoEffectInit(
-                this.$refs.localCanvasRef as HTMLCanvasElement,
+                canvas,
                 this.localCanvasContext.value!,
                 originalStream,
                 this.$refs.localVideoRef as HTMLVideoElement
@@ -331,6 +333,7 @@ export default Vue.extend({
             }
 
             const audioTracks = this.localAudioStreamRef.value?.getAudioTracks();
+
             if (audioTracks?.[0]) {
               this.localCanvasStreamRef.value?.getAudioTracks().forEach(track => {
                 this.localCanvasStreamRef.value?.removeTrack(track);
