@@ -5,7 +5,7 @@ export const makeToast = (
   content?: string,
   variant?: "default" | "primary" | "secondary" | "danger" | "warning" | "success" | "info"
 ) => {
-  (window.$nuxt as any)?.$bvToast?.toast(content, {
+  window.$nuxt?.$bvToast?.toast(content || "", {
     title: title ?? "提示",
     variant: variant || "default",
     solid: true,

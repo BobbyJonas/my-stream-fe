@@ -108,7 +108,6 @@ export default Vue.extend({
   },
 
   beforeMount() {
-    window.__MY_STREAM__ = _.defaultsDeep({ $bus: this?.$bus }, window.__MY_STREAM__ || {});
     // console.log(adapter.browserDetails.browser);
 
     setTimeout(() => {
@@ -167,13 +166,12 @@ export default Vue.extend({
               .map((item): Promise<void> => {
                 const socketId = item.socketId;
                 if (socketId === socketioService.socket.id) return Promise.resolve();
-                const pcInstance =
-                  pcInstanceMap?.[socketId] ||
-                  new window.RTCPeerConnection({
+                let pcInstance = pcInstanceMap?.[socketId];
+
+                if (!(pcInstance?.connectionState === "connected")) {
+                  pcInstance = new window.RTCPeerConnection({
                     iceServers: iceServerPublicList.map(item => ({ urls: item })),
                   });
-
-                if (pcInstance !== pcInstanceMap[socketId]) {
                   pcInstance.onicecandidate = this.onRtcIceCandidate;
                   this.$set(this.pcInstanceMap, socketId, pcInstance);
                   this.setPcInstanceMap(this.pcInstanceMap);
@@ -212,11 +210,10 @@ export default Vue.extend({
       console.log("on-offer");
 
       const { data, from } = args;
-      const pcInstance: RTCPeerConnection =
-        this.pcInstanceMap[from] ||
-        new window.RTCPeerConnection({
-          iceServers: iceServerPublicList.map(item => ({ urls: item })),
-        });
+      this.pcInstanceMap[from]?.close();
+      const pcInstance: RTCPeerConnection = new window.RTCPeerConnection({
+        iceServers: iceServerPublicList.map(item => ({ urls: item })),
+      });
 
       pcInstance.onicecandidate = this.onRtcIceCandidate;
       pcInstance.setLocalDescription(undefined);
@@ -294,6 +291,7 @@ export default Vue.extend({
         .createOffer?.({
           offerToReceiveVideo: true,
           offerToReceiveAudio: true,
+          iceRestart: true,
         })
         .then(sdp => {
           pcInstance.setLocalDescription(sdp);
@@ -323,7 +321,7 @@ export default Vue.extend({
     },
 
     globalConnectionRestart() {
-      // this.globalConnectionStop();
+      this.globalConnectionStop();
       const pcInstanceMap: Record<string, RTCPeerConnection | null> = this.pcInstanceMap;
       const socketIdList = Object.keys(pcInstanceMap).map(
         item => ({ socketId: item } as IConnectionModel)
