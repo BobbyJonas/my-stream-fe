@@ -449,7 +449,7 @@ export default Vue.extend({
         makeToast("警告", "请先等待当前传输任务完成之后再进行下载", "warning");
         return;
       }
-      if (this.lastRemoteBlobUrl[item.id]) {
+      if (this.lastRemoteBlobUrl?.[item.id]) {
         const element = document.createElement("a");
         element.setAttribute("href", this.lastRemoteBlobUrl[item.id]);
         element.setAttribute("download", item.name);
